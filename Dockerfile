@@ -20,7 +20,7 @@ RUN git clone --depth 1 https://github.com/eclipse-threadx/threadx.git && \
     git clone --depth 1 https://github.com/STMicroelectronics/cmsis_device_h7.git && \
     git clone --depth 1 https://github.com/ARM-software/CMSIS_5.git
 
-# Copy project
+# Copy project Directly Build and Test Can Use ./build.sh
 COPY . /workspace/project
 WORKDIR /workspace/project
 
