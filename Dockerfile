@@ -1,7 +1,9 @@
 FROM ubuntu:22.04
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    build-essential cmake ninja-build git gcc-arm-none-eabi gdb-multiarch ca-certificates \
+    build-essential cmake ninja-build git gcc-arm-none-eabi gdb-multiarch \
+    libnewlib-arm-none-eabi libnewlib-dev libstdc++-arm-none-eabi-newlib \
+    libstdc++-arm-none-eabi-dev ca-certificates \
     openssh-client openssh-server vim \
     && rm -rf /var/lib/apt/lists/*
 
@@ -12,9 +14,11 @@ RUN ssh-keygen -A && \
 
 WORKDIR /workspace
 
-# Clone ThreadX and HAL drivers
+# Clone ThreadX, HAL drivers and CMSIS device headers
 RUN git clone --depth 1 https://github.com/eclipse-threadx/threadx.git && \
-    git clone --depth 1 https://github.com/STMicroelectronics/stm32h7xx_hal_driver.git
+    git clone --depth 1 https://github.com/STMicroelectronics/stm32h7xx_hal_driver.git && \
+    git clone --depth 1 https://github.com/STMicroelectronics/cmsis_device_h7.git && \
+    git clone --depth 1 https://github.com/ARM-software/CMSIS_5.git
 
 # Copy project Directly Build and Test Can Use ./build.sh
 COPY . /workspace/project

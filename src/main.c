@@ -1,11 +1,12 @@
 #include "tx_api.h"
 #include "stm32h7xx_hal.h"
 #include <stdio.h>
+#include <stdint.h>
 
 UART_HandleTypeDef huart5;
 
 void SystemClock_Config(void);
-static void MX_USART5_UART_Init(void);
+static void MX_UART5_Init(void);
 
 void tx_application_define(void *first_unused_memory)
 {
@@ -34,7 +35,6 @@ void SystemClock_Config(void)
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
-
   /** Supply configuration update enable 
   */
   HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
