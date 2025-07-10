@@ -14,9 +14,15 @@ The provided `Dockerfile` sets up an Ubuntu container with the Arm GNU toolchain
    ```
 2. Run the container and build the example inside:
    ```bash
-    docker run -it threadx-h750 --name threadx-h750-docker -p 2022:22 bash
-    ```
-    The resulting ELF binary will be located in the `build/` directory.
+   docker run -it threadx-h750 --name threadx-h750-docker -p 2022:22 bash
+   ```
+   Inside the container you can simply run `make` to build the project.
+   The resulting ELF binary will be located in the `build/` directory.
+
+3. To remove generated build files run:
+   ```bash
+   make clean
+   ```
 
 ## Flashing the application
 
