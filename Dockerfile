@@ -1,7 +1,7 @@
 FROM ubuntu:22.04
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    build-essential cmake ninja-build git gcc-arm-none-eabi gdb-multiarch \
+    build-essential cmake ninja-build git gcc-arm-none-eabi gdb-multiarch ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
