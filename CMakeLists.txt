@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(ThreadX_UART5_Hello C)
+project(ThreadX_UART5_Hello C ASM)
 
 set(CMAKE_C_STANDARD 11)
 
