@@ -3,6 +3,7 @@
 *.elf
 *.bin
 *.hex
+build.log
 
 # Docker stuff
 threadx/

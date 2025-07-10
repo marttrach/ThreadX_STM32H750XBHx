@@ -28,6 +28,7 @@ add_executable(hello_uart5
     src/main.c
     src/tx_initialize_low_level.c
     src/usart.c
+    startup_stm32h750xb.S
 )
 
 target_compile_definitions(hello_uart5 PRIVATE STM32H750xx)
@@ -40,6 +41,11 @@ target_sources(hello_uart5 PRIVATE ${HAL_SOURCES})
 target_sources(hello_uart5 PRIVATE ${CMSIS_SYSTEM_SRC})
 
 target_link_libraries(hello_uart5 PRIVATE threadx)
+
+target_link_options(hello_uart5 PRIVATE
+    -T${CMAKE_CURRENT_SOURCE_DIR}/stm32h750xb_flash.ld
+    -Wl,-Map=hello_uart5.map
+)
 
 target_sources(hello_uart5 PRIVATE
     ${HAL_DRIVER_DIR}/Src/stm32h7xx_hal_uart.c

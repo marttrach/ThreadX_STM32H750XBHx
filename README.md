@@ -14,9 +14,15 @@ The provided `Dockerfile` sets up an Ubuntu container with the Arm GNU toolchain
    ```
 2. Run the container and build the example inside:
    ```bash
-   docker run -it threadx-h750 --name threadx-h750-docker -p 2022:22 bash
-   ```
-   The resulting ELF binary will be located in the `build/` directory.
+    docker run -it threadx-h750 --name threadx-h750-docker -p 2022:22 bash
+    ```
+    The resulting ELF binary will be located in the `build/` directory.
+
+## Flashing the application
+
+The project now includes a startup file and linker script so the
+application is linked for flash address `0x08000000`. Use STM32CubeProgrammer
+or a similar tool to load `build/hello_uart5.elf` onto the board.
 
 ## Source Overview
 - `src/main.c` – minimal ThreadX application that initializes UART5 and prints `Hello world`.
