@@ -6,7 +6,7 @@ This repository demonstrates how to build a minimal ThreadX application for the 
 - Docker installed on the host machine
 
 ## Build Steps
-The provided `Dockerfile` sets up an Ubuntu container with the Arm GNU toolchain, CMake and Ninja. It also clones the official ThreadX sources and the STM32H7 HAL drivers.
+The provided `Dockerfile` sets up an Ubuntu container with the Arm GNU toolchain, CMake and Ninja. It also clones the official ThreadX sources and the STM32H7 HAL drivers. Basic utilities like SSH and vim are installed, and a default RSA key pair is generated so the container is ready for SSH connections.
 
 1. Build the Docker image:
    ```bash

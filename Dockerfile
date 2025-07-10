@@ -2,7 +2,13 @@ FROM ubuntu:22.04
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     build-essential cmake ninja-build git gcc-arm-none-eabi gdb-multiarch ca-certificates \
+    openssh-client openssh-server vim \
     && rm -rf /var/lib/apt/lists/*
+
+# Prepare SSH keys so the container can use SSH immediately
+RUN ssh-keygen -A && \
+    mkdir -p /root/.ssh && \
+    ssh-keygen -t rsa -f /root/.ssh/id_rsa -N "" -q
 
 WORKDIR /workspace
 
