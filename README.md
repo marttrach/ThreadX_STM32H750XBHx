@@ -36,3 +36,8 @@ or a similar tool to load `build/hello_uart5.elf` onto the board.
 - `build.sh` – helper script executed inside the container.
 
 This setup follows the [ThreadX development guidelines](https://github.com/eclipse-threadx/threadx) by building ThreadX as part of the application using CMake and the Arm GNU Toolchain.
+
+## Advanced Communication Hub Example
+
+For a conceptual design of turning the STM32H750XBHx into an I2C-based communication hub that controls other peripherals (UART, SPI, GPIO, PWM, ADC, CAN) using ThreadX message queues, see [docs/communication_hub.md](docs/communication_hub.md).
+This document links to a small C skeleton showing how the threads and queues fit together.
