@@ -1,12 +1,12 @@
 #include "tx_api.h"
 #include "stm32h7xx_hal.h"
+#include "usart.h"
 #include <stdio.h>
 #include <stdint.h>
 
-UART_HandleTypeDef huart5;
+// UART_HandleTypeDef huart5;
 
 void SystemClock_Config(void);
-static void MX_UART5_Init(void);
 
 void tx_application_define(void *first_unused_memory)
 {
@@ -143,4 +143,16 @@ int _write(int fd, char *ptr, int len)
         return len;
     }
     return -1;
+}
+
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
+
+  /* USER CODE END Error_Handler_Debug */
 }

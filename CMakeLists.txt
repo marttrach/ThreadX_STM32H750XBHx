@@ -21,6 +21,7 @@ include_directories(
     ${CMSIS_DIR}/Include
     ${CMSIS_CORE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
+    Inc
 )
 
 add_executable(hello_uart5
