@@ -1,11 +1,12 @@
 #include "tx_api.h"
 #include "stm32h7xx_hal.h"
 #include <stdio.h>
+#include <stdint.h>
 
 UART_HandleTypeDef huart5;
 
 void SystemClock_Config(void);
-static void MX_USART5_UART_Init(void);
+static void MX_UART5_Init(void);
 
 void tx_application_define(void *first_unused_memory)
 {
@@ -20,7 +21,7 @@ int main(void)
 {
     HAL_Init();
     SystemClock_Config();
-    MX_USART5_UART_Init();
+    MX_UART5_Init();
 
     tx_kernel_enter();
 }
@@ -30,10 +31,10 @@ void SystemClock_Config(void)
     /* Placeholder: configure HCLK and PCLK. Actual implementation depends on board. */
 }
 
-static void MX_USART5_UART_Init(void)
+static void MX_UART5_Init(void)
 {
-    __HAL_RCC_USART5_CLK_ENABLE();
-    huart5.Instance = USART5;
+    __HAL_RCC_UART5_CLK_ENABLE();
+    huart5.Instance = UART5;
     huart5.Init.BaudRate = 115200;
     huart5.Init.WordLength = UART_WORDLENGTH_8B;
     huart5.Init.StopBits = UART_STOPBITS_1;
