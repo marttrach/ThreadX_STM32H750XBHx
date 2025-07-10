@@ -1,0 +1,9 @@
+/build/
+*.o
+*.elf
+*.bin
+*.hex
+
+# Docker stuff
+threadx/
+stm32h7xx_hal_driver/
