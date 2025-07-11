@@ -13,7 +13,7 @@ set(MX_Defines_Syms
 
 # STM32CubeMX generated include paths
 set(MX_Include_Dirs
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../AZURE_RTOS/App
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../stm32h7xx_hal_driver/Inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../stm32h7xx_hal_driver/Inc/Legacy

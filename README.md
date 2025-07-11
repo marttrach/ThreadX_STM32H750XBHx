@@ -16,8 +16,12 @@ The provided `Dockerfile` sets up an Ubuntu container with the Arm GNU toolchain
    ```bash
    docker run -it threadx-h750 --name threadx-h750-docker -p 2022:22 bash
    ```
-   Inside the container you can simply run `make` to build the project.
-   The resulting ELF binary will be located in the `build/` directory.
+   Inside the container run `./build.sh` with a preset name to configure and
+   build the project in a single step. For example:
+   ```bash
+   ./build.sh Debug
+   ```
+   The generated ELF file will be located under `build/Debug/NEW_STM32.elf`.
 
 3. To remove generated build files run:
    ```bash
@@ -28,7 +32,7 @@ The provided `Dockerfile` sets up an Ubuntu container with the Arm GNU toolchain
 
 The project now includes a startup file and linker script so the
 application is linked for flash address `0x08000000`. Use STM32CubeProgrammer
-or a similar tool to load `build/hello_uart5.elf` onto the board.
+or a similar tool to load `build/Debug/IOT_DUAL_STM32.elf` onto the board.
 
 ## Source Overview
 - `src/main.c` – minimal ThreadX application that initializes UART5 and prints `Hello world`.

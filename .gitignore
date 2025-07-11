@@ -1,3 +1,4 @@
+/.vscode/
 /build/
 *.o
 *.elf
@@ -5,6 +6,3 @@
 *.hex
 build.log
 
-# Docker stuff
-threadx/
-stm32h7xx_hal_driver/

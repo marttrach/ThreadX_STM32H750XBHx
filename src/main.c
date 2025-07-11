@@ -70,14 +70,6 @@ void SystemClock_Config(void);
 void PeriphCommonClock_Config(void);
 static void MPU_Config(void);
 /* USER CODE BEGIN PFP */
-void tx_application_define(void *first_unused_memory)
-{
-    (void)first_unused_memory;
-    /* Send hello world once threadX is running */
-    const char msg[] = "Hello world\r\n";
-    HAL_UART_Transmit(&huart5, (uint8_t*)msg, sizeof(msg) - 1, HAL_MAX_DELAY);
-    while(1) { tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND); }
-}
 int _write(int fd, char *ptr, int len)
 {
     if (fd == 1 || fd == 2) {
