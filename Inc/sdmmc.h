@@ -1,9 +1,9 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file    usart.h
+  * @file    sdmmc.h
   * @brief   This file contains all the function prototypes for
-  *          the usart.c file
+  *          the sdmmc.c file
   ******************************************************************************
   * @attention
   *
@@ -18,8 +18,8 @@
   */
 /* USER CODE END Header */
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __USART_H__
-#define __USART_H__
+#ifndef __SDMMC_H__
+#define __SDMMC_H__
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,19 +32,16 @@ extern "C" {
 
 /* USER CODE END Includes */
 
-extern UART_HandleTypeDef huart5;
+extern SD_HandleTypeDef hsd1;
 
-extern UART_HandleTypeDef huart7;
-
-extern UART_HandleTypeDef huart8;
+extern SD_HandleTypeDef hsd2;
 
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
 
-void MX_UART5_Init(void);
-void MX_UART7_Init(void);
-void MX_UART8_Init(void);
+void MX_SDMMC1_SD_Init(void);
+void MX_SDMMC2_SD_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 
@@ -54,5 +51,5 @@ void MX_UART8_Init(void);
 }
 #endif
 
-#endif /* __USART_H__ */
+#endif /* __SDMMC_H__ */
 

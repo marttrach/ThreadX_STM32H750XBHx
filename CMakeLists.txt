@@ -1,54 +1,68 @@
-cmake_minimum_required(VERSION 3.15)
-project(ThreadX_UART5_Hello C ASM)
+cmake_minimum_required(VERSION 3.22)
 
+#
+# This file is generated only once,
+# and is not re-generated if converter is called multiple times.
+#
+# User is free to modify the file as much as necessary
+#
+
+# Setup compiler settings
 set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS ON)
 
-# Path to ThreadX
-set(THREADX_ROOT ${THREADX_ROOT} CACHE PATH "../threadx")
-# Path to HAL drivers
-set(CMSIS_DIR ${CMSIS_DIR} CACHE PATH "../CMSIS_5")
-set(CMSIS_CORE_DIR ${CMSIS_CORE_DIR} CACHE PATH "../cmsis_device_h7")
-set(HAL_DRIVER_DIR ${HAL_DRIVER_DIR} CACHE PATH "../stm32h7xx_hal_driver")
 
-# Include ThreadX build system
-add_subdirectory(${THREADX_ROOT} threadx_build)
+# Define the build type
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Debug")
+endif()
 
-include_directories(
-    ${THREADX_ROOT}/common/inc
-    ${THREADX_ROOT}/ports/cortex_m7/gnu/inc
-    ${HAL_DRIVER_DIR}/Inc
-    ${HAL_DRIVER_DIR}/Inc/Legacy
-    ${CMSIS_DIR}/Include
-    ${CMSIS_CORE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    Inc
+# Set the project name
+set(CMAKE_PROJECT_NAME NEW_STM32)
+
+# Enable compile command to ease indexing with e.g. clangd
+set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
+
+# Core project settings
+project(${CMAKE_PROJECT_NAME})
+message("Build type: " ${CMAKE_BUILD_TYPE})
+
+# Enable CMake support for ASM and C languages
+enable_language(C ASM)
+
+# Create an executable object type
+add_executable(${CMAKE_PROJECT_NAME})
+
+# Add STM32CubeMX generated sources
+add_subdirectory(cmake/stm32cubemx)
+
+# Link directories setup
+target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
+    # Add user defined library search paths
 )
 
-add_executable(hello_uart5
-    src/main.c
-    src/tx_initialize_low_level.c
-    src/usart.c
-    startup_stm32h750xb.S
+# Add sources to executable
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+    # Add user sources here
 )
 
-target_compile_definitions(hello_uart5 PRIVATE STM32H750xx)
-
-file(GLOB HAL_SOURCES ${HAL_DRIVER_DIR}/Src/*.c)
-list(FILTER HAL_SOURCES EXCLUDE REGEX "stm32h7xx_hal_timebase_.*_template.c")
-list(APPEND HAL_SOURCES ${HAL_DRIVER_DIR}/Src/stm32h7xx_hal_timebase_tim_template.c)
-set(CMSIS_SYSTEM_SRC ${CMSIS_DIR}/Source/Templates/system_stm32h7xx.c)
-target_sources(hello_uart5 PRIVATE ${HAL_SOURCES})
-target_sources(hello_uart5 PRIVATE ${CMSIS_SYSTEM_SRC})
-
-target_link_libraries(hello_uart5 PRIVATE threadx)
-
-target_link_options(hello_uart5 PRIVATE
-    -T${CMAKE_CURRENT_SOURCE_DIR}/stm32h750xb_flash.ld
-    -Wl,-Map=hello_uart5.map
+# Add include paths
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+    # Add user defined include paths
 )
 
-target_sources(hello_uart5 PRIVATE
-    ${HAL_DRIVER_DIR}/Src/stm32h7xx_hal_uart.c
-    ${HAL_DRIVER_DIR}/Src/stm32h7xx_hal_usart.c
-    ${HAL_DRIVER_DIR}/Src/stm32h7xx_hal.c
+# Add project symbols (macros)
+target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
+    # Add user defined symbols
+)
+
+# Remove wrong libob.a library dependency when using cpp files
+list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
+
+# Add linked libraries
+target_link_libraries(${CMAKE_PROJECT_NAME}
+    stm32cubemx
+
+    # Add user defined libraries
 )
