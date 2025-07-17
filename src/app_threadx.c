@@ -124,9 +124,8 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   */
 void tx_app_thread_entry(ULONG thread_input)
 {
-  /* USER CODE BEGIN tx_app_thread_entry */
-  const char msg[] = "Hello world\r\n";
-  HAL_UART_Transmit(&huart5, (uint8_t*)msg, sizeof(msg) - 1, HAL_MAX_DELAY);
+  /* USER CODE BEGIN tx_app_thread_entry */  
+  DEBUG_DUMP(IOT_LOG_INFO, "DUALMCU booting done.\r\n");
   while(1) { tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND); }
 
   /* USER CODE END tx_app_thread_entry */
