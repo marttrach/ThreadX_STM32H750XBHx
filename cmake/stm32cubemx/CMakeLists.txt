@@ -53,6 +53,7 @@ set(MX_Application_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/stm32h7xx_hal_timebase_tim.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/sysmem.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/syscalls.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/i2c_hub.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../startup_stm32h750xx.s
 )
 

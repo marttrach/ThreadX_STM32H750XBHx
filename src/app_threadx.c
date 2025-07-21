@@ -27,7 +27,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "usart.h"
+#include "i2c_hub.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -126,6 +126,9 @@ void tx_app_thread_entry(ULONG thread_input)
 {
   /* USER CODE BEGIN tx_app_thread_entry */  
   DEBUG_DUMP(IOT_LOG_INFO, "DUALMCU booting done.\r\n");
+  hub_start();
+  /* Issue a test command from I2C2 acting as master */
+  tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND);
   while(1) { tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND); }
 
   /* USER CODE END tx_app_thread_entry */

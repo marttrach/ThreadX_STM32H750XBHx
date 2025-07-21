@@ -137,7 +137,7 @@ int main(void)
   MX_HASH_Init();
   MX_I2C1_Init();
   MX_I2C2_Init();
-  MX_IWDG1_Init();
+  // MX_IWDG1_Init();
   MX_LPTIM1_Init();
   MX_RNG_Init();
   MX_RTC_Init();
@@ -156,7 +156,14 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
+  // HAL_I2C_EnableListen_IT(&hi2c2);
+  // HAL_Delay(1000); // Wait for peripherals to stabilize
+  // DEBUG_DUMP(IOT_LOG_DEBUG,"CR1=%08lX OAR1=%08lX\n",
+  //      hi2c2.Instance->CR1, hi2c2.Instance->OAR1);
 
+  // while (1) { 
+  //   __WFI();
+  // }  
   MX_ThreadX_Init();
 
   /* We should never get here as control is now taken by the scheduler */
