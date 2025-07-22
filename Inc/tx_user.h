@@ -202,47 +202,47 @@
    code size and overhead, but provides the ability to generate system trace information which
    is available for viewing in TraceX.  */
 
-#define TX_ENABLE_EVENT_TRACE
+/*#define TX_ENABLE_EVENT_TRACE*/
 
 /* Determine if block pool performance gathering is required by the application. When the following is
    defined, ThreadX gathers various block pool performance information. */
 
-#define TX_BLOCK_POOL_ENABLE_PERFORMANCE_INFO
+/*#define TX_BLOCK_POOL_ENABLE_PERFORMANCE_INFO*/
 
 /* Determine if byte pool performance gathering is required by the application. When the following is
    defined, ThreadX gathers various byte pool performance information. */
 
-#define TX_BYTE_POOL_ENABLE_PERFORMANCE_INFO
+/*#define TX_BYTE_POOL_ENABLE_PERFORMANCE_INFO*/
 
 /* Determine if event flags performance gathering is required by the application. When the following is
    defined, ThreadX gathers various event flags performance information. */
 
-#define TX_EVENT_FLAGS_ENABLE_PERFORMANCE_INFO
+/*#define TX_EVENT_FLAGS_ENABLE_PERFORMANCE_INFO*/
 
 /* Determine if mutex performance gathering is required by the application. When the following is
    defined, ThreadX gathers various mutex performance information. */
 
-#define TX_MUTEX_ENABLE_PERFORMANCE_INFO
+/*#define TX_MUTEX_ENABLE_PERFORMANCE_INFO*/
 
 /* Determine if queue performance gathering is required by the application. When the following is
    defined, ThreadX gathers various queue performance information. */
 
-#define TX_QUEUE_ENABLE_PERFORMANCE_INFO
+/*#define TX_QUEUE_ENABLE_PERFORMANCE_INFO*/
 
 /* Determine if semaphore performance gathering is required by the application. When the following is
    defined, ThreadX gathers various semaphore performance information. */
 
-#define TX_SEMAPHORE_ENABLE_PERFORMANCE_INFO
+/*#define TX_SEMAPHORE_ENABLE_PERFORMANCE_INFO*/
 
 /* Determine if thread performance gathering is required by the application. When the following is
    defined, ThreadX gathers various thread performance information. */
 
-#define TX_THREAD_ENABLE_PERFORMANCE_INFO
+/*#define TX_THREAD_ENABLE_PERFORMANCE_INFO*/
 
 /* Determine if timer performance gathering is required by the application. When the following is
    defined, ThreadX gathers various timer performance information. */
 
-#define TX_TIMER_ENABLE_PERFORMANCE_INFO
+/*#define TX_TIMER_ENABLE_PERFORMANCE_INFO*/
 
 /* Define the clock source for trace event entry time stamp. */
 

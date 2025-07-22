@@ -8,7 +8,7 @@ set -e
 # CMSIS_CORE_DIR=${CMSIS_CORE_DIR:-/workspace/CMSIS_5/CMSIS/Core/Include}
 
 # Optional preset argument (Debug or Release). Defaults to Debug.
-PRESET=${1:-Debug}
+PRESET=${1:-Release}
 
 # Configure and build using CMake presets. The preset determines the build
 # directory under `build/<preset>`.
