@@ -170,12 +170,12 @@
 #define  USE_SD_TRANSCEIVER           0U               /*!< use uSD Transceiver */
 #define  USE_SPI_CRC	              0U               /*!< use CRC in SPI */
 
-#define  USE_HAL_ADC_REGISTER_CALLBACKS     0U /* ADC register callback disabled     */
+#define  USE_HAL_ADC_REGISTER_CALLBACKS     1U /* ADC register callback enabled     */
 #define  USE_HAL_CEC_REGISTER_CALLBACKS     0U /* CEC register callback disabled     */
 #define  USE_HAL_COMP_REGISTER_CALLBACKS    0U /* COMP register callback disabled    */
 #define  USE_HAL_CORDIC_REGISTER_CALLBACKS  0U /* CORDIC register callback disabled  */
 #define  USE_HAL_CRYP_REGISTER_CALLBACKS    0U /* CRYP register callback disabled    */
-#define  USE_HAL_DAC_REGISTER_CALLBACKS     0U /* DAC register callback disabled     */
+#define  USE_HAL_DAC_REGISTER_CALLBACKS     1U /* DAC register callback enabled     */
 #define  USE_HAL_DCMI_REGISTER_CALLBACKS    0U /* DCMI register callback disabled    */
 #define  USE_HAL_DFSDM_REGISTER_CALLBACKS   0U /* DFSDM register callback disabled   */
 #define  USE_HAL_DMA2D_REGISTER_CALLBACKS   0U /* DMA2D register callback disabled   */
@@ -188,7 +188,7 @@
 #define  USE_HAL_NOR_REGISTER_CALLBACKS     0U /* NOR register callback disabled     */
 #define  USE_HAL_SDRAM_REGISTER_CALLBACKS   0U /* SDRAM register callback disabled   */
 #define  USE_HAL_SRAM_REGISTER_CALLBACKS    0U /* SRAM register callback disabled    */
-#define  USE_HAL_HASH_REGISTER_CALLBACKS    0U /* HASH register callback disabled    */
+#define  USE_HAL_HASH_REGISTER_CALLBACKS    1U /* HASH register callback enabled    */
 #define  USE_HAL_HCD_REGISTER_CALLBACKS     0U /* HCD register callback disabled     */
 #define  USE_HAL_GFXMMU_REGISTER_CALLBACKS  0U /* GFXMMU register callback disabled  */
 #define  USE_HAL_HRTIM_REGISTER_CALLBACKS   0U /* HRTIM register callback disabled   */
@@ -205,10 +205,10 @@
 #define  USE_HAL_OTFDEC_REGISTER_CALLBACKS  0U /* OTFDEC register callback disabled  */
 #define  USE_HAL_PCD_REGISTER_CALLBACKS     0U /* PCD register callback disabled     */
 #define  USE_HAL_QSPI_REGISTER_CALLBACKS    0U /* QSPI register callback disabled    */
-#define  USE_HAL_RNG_REGISTER_CALLBACKS     0U /* RNG register callback disabled     */
+#define  USE_HAL_RNG_REGISTER_CALLBACKS     1U /* RNG register callback enabled     */
 #define  USE_HAL_RTC_REGISTER_CALLBACKS     0U /* RTC register callback disabled     */
 #define  USE_HAL_SAI_REGISTER_CALLBACKS     0U /* SAI register callback disabled     */
-#define  USE_HAL_SD_REGISTER_CALLBACKS      0U /* SD register callback disabled      */
+#define  USE_HAL_SD_REGISTER_CALLBACKS      1U /* SD register callback enabled      */
 #define  USE_HAL_SMARTCARD_REGISTER_CALLBACKS  0U /* SMARTCARD register callback disabled */
 #define  USE_HAL_SPDIFRX_REGISTER_CALLBACKS 0U /* SPDIFRX register callback disabled */
 #define  USE_HAL_SMBUS_REGISTER_CALLBACKS   0U /* SMBUS register callback disabled   */

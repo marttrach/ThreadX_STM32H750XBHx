@@ -27,39 +27,40 @@ set(MX_Include_Dirs
 # STM32CubeMX generated application sources
 set(MX_Application_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../AZURE_RTOS/App/app_azure_rtos.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/tx_initialize_low_level.S
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/main.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/gpio.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/app_threadx.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/adc.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/crc.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/dac.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/dma.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/fdcan.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/fmc.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/hash.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/i2c.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/iwdg.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/lptim.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/rng.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/rtc.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/sdmmc.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/spi.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/tim.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/usart.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/usb_otg.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/stm32h7xx_it.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/stm32h7xx_hal_msp.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/stm32h7xx_hal_timebase_tim.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/sysmem.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/syscalls.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/i2c_hub.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/tx_initialize_low_level.S
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/main.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/gpio.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/app_threadx.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/adc.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/crc.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/dac.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/dma.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/fdcan.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/fmc.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/hash.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/i2c.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/iwdg.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/lptim.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/mdma.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/rng.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/rtc.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/sdmmc.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/spi.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/tim.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/usart.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/usb_otg.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/stm32h7xx_it.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/stm32h7xx_hal_msp.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/stm32h7xx_hal_timebase_tim.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/sysmem.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/syscalls.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/i2c_hub.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../startup_stm32h750xx.s
 )
 
 # STM32 HAL/LL Drivers
 set(STM32_Drivers_Src
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/system_stm32h7xx.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/system_stm32h7xx.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../stm32h7xx_hal_driver/Src/stm32h7xx_hal_tim.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../stm32h7xx_hal_driver/Src/stm32h7xx_hal_tim_ex.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../stm32h7xx_hal_driver/Src/stm32h7xx_hal_adc.c
