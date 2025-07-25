@@ -12,6 +12,7 @@
 #if (IOT_DEBUG_LEVEL ==  0)
 #define DEBUG_DUMP(...)  do{}while(0)
 #else
+#include <stdio.h> 
 #define DEBUG_DUMP(Lv, ...) do{if((Lv) >= IOT_DEBUG_LEVEL) printf(__VA_ARGS__);}while(0)
 #endif
 #endif

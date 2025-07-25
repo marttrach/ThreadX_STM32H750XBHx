@@ -136,12 +136,12 @@ int main(void)
   MX_CRC_Init();
   MX_DAC1_Init();
   MX_FDCAN1_Init();
-  MX_HASH_Init();
+  // MX_HASH_Init();
   MX_I2C1_Init();
   MX_I2C2_Init();
   // MX_IWDG1_Init(); //Maybe there's no need to auto restart.
   MX_LPTIM1_Init();
-  MX_RNG_Init();
+  // MX_RNG_Init();
   MX_RTC_Init();
   MX_SDMMC1_SD_Init();
   MX_SDMMC2_SD_Init();
@@ -154,7 +154,7 @@ int main(void)
   MX_UART7_Init();
   MX_UART8_Init();
   MX_FMC_Init();
-  MX_USB_OTG_FS_PCD_Init();
+  // MX_USB_OTG_FS_PCD_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
