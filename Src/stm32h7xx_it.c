@@ -55,8 +55,12 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-extern DMA_HandleTypeDef hdma_dac1_ch1;
+extern DMA_HandleTypeDef hdma_adc1;
+extern DMA_HandleTypeDef hdma_cryp_out;
+extern DMA_HandleTypeDef hdma_cryp_in;
+extern CRYP_HandleTypeDef hcryp;
 extern FDCAN_HandleTypeDef hfdcan1;
+extern HASH_HandleTypeDef hhash;
 extern DMA_HandleTypeDef hdma_i2c1_rx;
 extern DMA_HandleTypeDef hdma_i2c1_tx;
 extern DMA_HandleTypeDef hdma_i2c2_rx;
@@ -64,9 +68,23 @@ extern DMA_HandleTypeDef hdma_i2c2_tx;
 extern I2C_HandleTypeDef hi2c1;
 extern I2C_HandleTypeDef hi2c2;
 extern LPTIM_HandleTypeDef hlptim1;
-extern MDMA_HandleTypeDef hmdma_mdma_channel0_sdmmc1_command_end_0;
-extern MDMA_HandleTypeDef hmdma_mdma_channel1_sw_0;
-extern MDMA_HandleTypeDef hmdma_mdma_channel2_dma1_stream0_tc_0;
+extern MDMA_HandleTypeDef hmdma_mdma_channel0_sdmmc1_end_data_0;
+extern MDMA_HandleTypeDef hmdma_mdma_channel1_dma1_stream4_tc_0;
+extern MDMA_HandleTypeDef hmdma_mdma_channel2_dma1_stream5_tc_0;
+extern MDMA_HandleTypeDef hmdma_mdma_channel3_dma1_stream0_tc_0;
+extern MDMA_HandleTypeDef hmdma_mdma_channel4_dma1_stream1_tc_0;
+extern MDMA_HandleTypeDef hmdma_mdma_channel5_dma1_stream2_tc_0;
+extern MDMA_HandleTypeDef hmdma_mdma_channel6_dma1_stream3_tc_0;
+extern MDMA_HandleTypeDef hmdma_mdma_channel7_dma2_stream1_tc_0;
+extern MDMA_HandleTypeDef hmdma_mdma_channel8_dma2_stream4_tc_0;
+extern MDMA_HandleTypeDef hmdma_mdma_channel9_dma1_stream6_tc_0;
+extern MDMA_HandleTypeDef hmdma_mdma_channel10_dma1_stream7_tc_0;
+extern MDMA_HandleTypeDef hmdma_mdma_channel11_dma2_stream0_tc_0;
+extern MDMA_HandleTypeDef hmdma_mdma_channel12_dma2_stream2_tc_0;
+extern MDMA_HandleTypeDef hmdma_mdma_channel13_dma2_stream3_tc_0;
+extern MDMA_HandleTypeDef hmdma_mdma_channel14_dma2_stream7_tc_0;
+extern MDMA_HandleTypeDef hmdma_mdma_channel15_dma2_stream5_tc_0;
+extern RNG_HandleTypeDef hrng;
 extern SD_HandleTypeDef hsd1;
 extern SD_HandleTypeDef hsd2;
 extern DMA_HandleTypeDef hdma_spi1_rx;
@@ -488,7 +506,7 @@ void DMA2_Stream3_IRQHandler(void)
   /* USER CODE BEGIN DMA2_Stream3_IRQn 0 */
 
   /* USER CODE END DMA2_Stream3_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_dac1_ch1);
+  HAL_DMA_IRQHandler(&hdma_cryp_in);
   /* USER CODE BEGIN DMA2_Stream3_IRQn 1 */
 
   /* USER CODE END DMA2_Stream3_IRQn 1 */
@@ -520,6 +538,63 @@ void FDCAN_CAL_IRQHandler(void)
   /* USER CODE BEGIN FDCAN_CAL_IRQn 1 */
 
   /* USER CODE END FDCAN_CAL_IRQn 1 */
+}
+
+/**
+  * @brief This function handles DMA2 stream6 global interrupt.
+  */
+void DMA2_Stream6_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA2_Stream6_IRQn 0 */
+
+  /* USER CODE END DMA2_Stream6_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_adc1);
+  /* USER CODE BEGIN DMA2_Stream6_IRQn 1 */
+
+  /* USER CODE END DMA2_Stream6_IRQn 1 */
+}
+
+/**
+  * @brief This function handles DMA2 stream7 global interrupt.
+  */
+void DMA2_Stream7_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA2_Stream7_IRQn 0 */
+
+  /* USER CODE END DMA2_Stream7_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_cryp_out);
+  /* USER CODE BEGIN DMA2_Stream7_IRQn 1 */
+
+  /* USER CODE END DMA2_Stream7_IRQn 1 */
+}
+
+/**
+  * @brief This function handles CRYP global interrupt.
+  */
+void CRYP_IRQHandler(void)
+{
+  /* USER CODE BEGIN CRYP_IRQn 0 */
+
+  /* USER CODE END CRYP_IRQn 0 */
+  HAL_CRYP_IRQHandler(&hcryp);
+  /* USER CODE BEGIN CRYP_IRQn 1 */
+
+  /* USER CODE END CRYP_IRQn 1 */
+}
+
+/**
+  * @brief This function handles HASH and RNG global interrupts.
+  */
+void HASH_RNG_IRQHandler(void)
+{
+  /* USER CODE BEGIN HASH_RNG_IRQn 0 */
+
+  /* USER CODE END HASH_RNG_IRQn 0 */
+  HAL_HASH_IRQHandler(&hhash);
+  HAL_RNG_IRQHandler(&hrng);
+  /* USER CODE BEGIN HASH_RNG_IRQn 1 */
+
+  /* USER CODE END HASH_RNG_IRQn 1 */
 }
 
 /**
@@ -641,9 +716,22 @@ void MDMA_IRQHandler(void)
   /* USER CODE BEGIN MDMA_IRQn 0 */
 
   /* USER CODE END MDMA_IRQn 0 */
-  HAL_MDMA_IRQHandler(&hmdma_mdma_channel0_sdmmc1_command_end_0);
-  HAL_MDMA_IRQHandler(&hmdma_mdma_channel1_sw_0);
-  HAL_MDMA_IRQHandler(&hmdma_mdma_channel2_dma1_stream0_tc_0);
+  HAL_MDMA_IRQHandler(&hmdma_mdma_channel0_sdmmc1_end_data_0);
+  HAL_MDMA_IRQHandler(&hmdma_mdma_channel1_dma1_stream4_tc_0);
+  HAL_MDMA_IRQHandler(&hmdma_mdma_channel2_dma1_stream5_tc_0);
+  HAL_MDMA_IRQHandler(&hmdma_mdma_channel3_dma1_stream0_tc_0);
+  HAL_MDMA_IRQHandler(&hmdma_mdma_channel4_dma1_stream1_tc_0);
+  HAL_MDMA_IRQHandler(&hmdma_mdma_channel5_dma1_stream2_tc_0);
+  HAL_MDMA_IRQHandler(&hmdma_mdma_channel6_dma1_stream3_tc_0);
+  HAL_MDMA_IRQHandler(&hmdma_mdma_channel7_dma2_stream1_tc_0);
+  HAL_MDMA_IRQHandler(&hmdma_mdma_channel8_dma2_stream4_tc_0);
+  HAL_MDMA_IRQHandler(&hmdma_mdma_channel9_dma1_stream6_tc_0);
+  HAL_MDMA_IRQHandler(&hmdma_mdma_channel10_dma1_stream7_tc_0);
+  HAL_MDMA_IRQHandler(&hmdma_mdma_channel11_dma2_stream0_tc_0);
+  HAL_MDMA_IRQHandler(&hmdma_mdma_channel12_dma2_stream2_tc_0);
+  HAL_MDMA_IRQHandler(&hmdma_mdma_channel13_dma2_stream3_tc_0);
+  HAL_MDMA_IRQHandler(&hmdma_mdma_channel14_dma2_stream7_tc_0);
+  HAL_MDMA_IRQHandler(&hmdma_mdma_channel15_dma2_stream5_tc_0);
   /* USER CODE BEGIN MDMA_IRQn 1 */
 
   /* USER CODE END MDMA_IRQn 1 */

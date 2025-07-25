@@ -1,9 +1,9 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file    app_azure_rtos_config.h
+  * @file    app_usbx_device.h
   * @author  MCD Application Team
-  * @brief   azure_rtos config header file
+  * @brief   USBX Device applicative header file
   ******************************************************************************
   * @attention
   *
@@ -16,12 +16,11 @@
   *
   ******************************************************************************
   */
-
 /* USER CODE END Header */
-
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef APP_AZURE_RTOS_CONFIG_H
-#define APP_AZURE_RTOS_CONFIG_H
+#ifndef __APP_USBX_DEVICE_H__
+#define __APP_USBX_DEVICE_H__
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,6 +30,10 @@ extern "C" {
 /* USER CODE END 1 */
 
 /* Includes ------------------------------------------------------------------*/
+#include "ux_api.h"
+#include "ux_device_descriptors.h"
+#include "ux_device_msc.h"
+#include "ux_device_cdc_acm.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -43,17 +46,10 @@ extern "C" {
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
-/* Using static memory allocation via threadX Byte memory pools */
+#define USBX_DEVICE_MEMORY_STACK_SIZE       1024
 
-#define USE_STATIC_ALLOCATION                    1
-
-#define TX_APP_MEM_POOL_SIZE                     4096
-
-#define FX_APP_MEM_POOL_SIZE                     8192
-
-#define NX_APP_MEM_POOL_SIZE                     24576
-
-#define UX_DEVICE_APP_MEM_POOL_SIZE              4096
+#define UX_DEVICE_APP_THREAD_STACK_SIZE   1024
+#define UX_DEVICE_APP_THREAD_PRIO         10
 
 /* USER CODE BEGIN EC */
 
@@ -65,6 +61,8 @@ extern "C" {
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
+UINT MX_USBX_Device_Init(VOID *memory_ptr);
+
 /* USER CODE BEGIN EFP */
 
 /* USER CODE END EFP */
@@ -74,6 +72,22 @@ extern "C" {
 
 /* USER CODE END PD */
 
+#ifndef UX_DEVICE_APP_THREAD_NAME
+#define UX_DEVICE_APP_THREAD_NAME  "USBX Device App Main Thread"
+#endif
+
+#ifndef UX_DEVICE_APP_THREAD_PREEMPTION_THRESHOLD
+#define UX_DEVICE_APP_THREAD_PREEMPTION_THRESHOLD  UX_DEVICE_APP_THREAD_PRIO
+#endif
+
+#ifndef UX_DEVICE_APP_THREAD_TIME_SLICE
+#define UX_DEVICE_APP_THREAD_TIME_SLICE  TX_NO_TIME_SLICE
+#endif
+
+#ifndef UX_DEVICE_APP_THREAD_START_OPTION
+#define UX_DEVICE_APP_THREAD_START_OPTION  TX_AUTO_START
+#endif
+
 /* USER CODE BEGIN 2 */
 
 /* USER CODE END 2 */
@@ -81,5 +95,4 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* APP_AZURE_RTOS_CONFIG_H */
+#endif /* __APP_USBX_DEVICE_H__ */

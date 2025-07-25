@@ -21,6 +21,7 @@
 #include "main.h"
 #include "adc.h"
 #include "crc.h"
+#include "cryp.h"
 #include "dac.h"
 #include "dma.h"
 #include "fdcan.h"
@@ -155,6 +156,7 @@ int main(void)
   MX_UART8_Init();
   MX_FMC_Init();
   // MX_USB_OTG_FS_PCD_Init();
+  MX_CRYP_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */

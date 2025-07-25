@@ -23,7 +23,18 @@
 
 /* Defines ------------------------------------------------------------------*/
 /* STMicroelectronics.X-CUBE-AZRTOS-H7.3.4.0 */
+#define USBXDEVICE_ENABLED
+#define UX_DEVICE_CONTROLLERS_ENABLED
+#define UX_DEVICE_STORAGE
+#define UX_DEVICE_CDC_ACM
+#define FILEX_ENABLED
+#define FX_SRAM_INTERFACE
+#define FX_SD_INTERFACE
+#define IS42S32800G_SDRAM
 #define THREADX_ENABLED
 #define TRACEX_SUPPORT_ENABLED
+#define NETXDUO_ENABLED
+#define ADDONS_NAT_ENABLED
+#define NX_CLOUD_ENABLED
 
 #endif /* __RTE_COMPONENTS_H__ */

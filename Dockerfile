@@ -15,13 +15,20 @@ RUN ssh-keygen -A && \
 WORKDIR /workspace
 
 # Clone ThreadX, HAL drivers and CMSIS device headers
-RUN git clone --depth 1 https://github.com/STMicroelectronics/stm32-mw-threadx.git && \
-    git clone --depth 1 https://github.com/STMicroelectronics/stm32h7xx_hal_driver.git && \
-    git clone --depth 1 https://github.com/STMicroelectronics/cmsis_device_h7.git && \
-    git clone --depth 1 https://github.com/STMicroelectronics/STM32CubeH7.git
+# RUN git clone --depth 1 https://github.com/STMicroelectronics/stm32-mw-threadx.git && \
+#     git clone --depth 1 https://github.com/STMicroelectronics/stm32h7xx_hal_driver.git && \
+#     git clone --depth 1 https://github.com/STMicroelectronics/cmsis_device_h7.git && \
+#     git clone --depth 1 https://github.com/STMicroelectronics/STM32CubeH7.git && \
+#     git clone --depth 1 https://github.com/STMicroelectronics/stm32-mw-netxduo.git && \
+#     git clone --depth 1 https://github.com/STMicroelectronics/stm32-mw-usbx.git && \
+#     git clone --depth 1 https://github.com/STMicroelectronics/stm32-mw-filex.git && \
+#     git clone --depth 1 https://github.com/STMicroelectronics/stm32-is42s32800g.git
 
 # Copy project Directly Build and Test Can Use ./build.sh
 COPY . /workspace/project
+RUN cd /workspace/project && \
+    git submodule update --init               \
+    && echo "[DONE] git submodule update --init"
 WORKDIR /workspace/project
 
 CMD ["/bin/bash"]

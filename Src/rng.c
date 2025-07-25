@@ -70,6 +70,10 @@ void HAL_RNG_MspInit(RNG_HandleTypeDef* rngHandle)
 
     /* RNG clock enable */
     __HAL_RCC_RNG_CLK_ENABLE();
+
+    /* RNG interrupt Init */
+    HAL_NVIC_SetPriority(HASH_RNG_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(HASH_RNG_IRQn);
   /* USER CODE BEGIN RNG_MspInit 1 */
 
   /* USER CODE END RNG_MspInit 1 */
@@ -86,6 +90,16 @@ void HAL_RNG_MspDeInit(RNG_HandleTypeDef* rngHandle)
   /* USER CODE END RNG_MspDeInit 0 */
     /* Peripheral clock disable */
     __HAL_RCC_RNG_CLK_DISABLE();
+
+    /* RNG interrupt Deinit */
+  /* USER CODE BEGIN RNG:HASH_RNG_IRQn disable */
+    /**
+    * Uncomment the line below to disable the "HASH_RNG_IRQn" interrupt
+    * Be aware, disabling shared interrupt may affect other IPs
+    */
+    /* HAL_NVIC_DisableIRQ(HASH_RNG_IRQn); */
+  /* USER CODE END RNG:HASH_RNG_IRQn disable */
+
   /* USER CODE BEGIN RNG_MspDeInit 1 */
 
   /* USER CODE END RNG_MspDeInit 1 */

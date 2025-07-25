@@ -1,9 +1,9 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file    app_azure_rtos_config.h
+  * @file    ux_device_msc.h
   * @author  MCD Application Team
-  * @brief   azure_rtos config header file
+  * @brief   USBX Device MSC applicative header file
   ******************************************************************************
   * @attention
   *
@@ -16,12 +16,11 @@
   *
   ******************************************************************************
   */
-
 /* USER CODE END Header */
-
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef APP_AZURE_RTOS_CONFIG_H
-#define APP_AZURE_RTOS_CONFIG_H
+#ifndef __UX_DEVICE_MSC_H__
+#define __UX_DEVICE_MSC_H__
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,6 +30,8 @@ extern "C" {
 /* USER CODE END 1 */
 
 /* Includes ------------------------------------------------------------------*/
+#include "ux_api.h"
+#include "ux_device_class_storage.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -43,18 +44,6 @@ extern "C" {
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
-/* Using static memory allocation via threadX Byte memory pools */
-
-#define USE_STATIC_ALLOCATION                    1
-
-#define TX_APP_MEM_POOL_SIZE                     4096
-
-#define FX_APP_MEM_POOL_SIZE                     8192
-
-#define NX_APP_MEM_POOL_SIZE                     24576
-
-#define UX_DEVICE_APP_MEM_POOL_SIZE              4096
-
 /* USER CODE BEGIN EC */
 
 /* USER CODE END EC */
@@ -65,6 +54,22 @@ extern "C" {
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
+VOID USBD_STORAGE_Activate(VOID *storage_instance);
+VOID USBD_STORAGE_Deactivate(VOID *storage_instance);
+UINT USBD_STORAGE_Read(VOID *storage_instance, ULONG lun, UCHAR *data_pointer,
+                       ULONG number_blocks, ULONG lba, ULONG *media_status);
+UINT USBD_STORAGE_Write(VOID *storage_instance, ULONG lun, UCHAR *data_pointer,
+                        ULONG number_blocks, ULONG lba, ULONG *media_status);
+UINT USBD_STORAGE_Flush(VOID *storage_instance, ULONG lun, ULONG number_blocks,
+                        ULONG lba, ULONG *media_status);
+UINT USBD_STORAGE_Status(VOID *storage_instance, ULONG lun, ULONG media_id,
+                         ULONG *media_status);
+UINT USBD_STORAGE_Notification(VOID *storage_instance, ULONG lun, ULONG media_id,
+                               ULONG notification_class, UCHAR **media_notification,
+                               ULONG *media_notification_length);
+ULONG USBD_STORAGE_GetMediaLastLba(VOID);
+ULONG USBD_STORAGE_GetMediaBlocklength(VOID);
+
 /* USER CODE BEGIN EFP */
 
 /* USER CODE END EFP */
@@ -74,6 +79,17 @@ extern "C" {
 
 /* USER CODE END PD */
 
+#ifndef STORAGE_NUMBER_LUN
+#define STORAGE_NUMBER_LUN   1
+#endif
+
+#ifndef STORAGE_REMOVABLE_FLAG
+#define STORAGE_REMOVABLE_FLAG   0x80U
+#endif
+
+#ifndef STORAGE_READ_ONLY
+#define STORAGE_READ_ONLY    UX_FALSE
+#endif
 /* USER CODE BEGIN 2 */
 
 /* USER CODE END 2 */
@@ -81,5 +97,4 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* APP_AZURE_RTOS_CONFIG_H */
+#endif  /* __UX_DEVICE_MSC_H__ */

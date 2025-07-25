@@ -1,9 +1,9 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file    app_azure_rtos_config.h
+  * @file    ux_device_cdc_acm.h
   * @author  MCD Application Team
-  * @brief   azure_rtos config header file
+  * @brief   USBX Device CDC ACM applicative header file
   ******************************************************************************
   * @attention
   *
@@ -16,12 +16,11 @@
   *
   ******************************************************************************
   */
-
 /* USER CODE END Header */
-
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef APP_AZURE_RTOS_CONFIG_H
-#define APP_AZURE_RTOS_CONFIG_H
+#ifndef __UX_DEVICE_CDC_ACM_H__
+#define __UX_DEVICE_CDC_ACM_H__
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,6 +30,8 @@ extern "C" {
 /* USER CODE END 1 */
 
 /* Includes ------------------------------------------------------------------*/
+#include "ux_api.h"
+#include "ux_device_class_cdc_acm.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -43,18 +44,6 @@ extern "C" {
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
-/* Using static memory allocation via threadX Byte memory pools */
-
-#define USE_STATIC_ALLOCATION                    1
-
-#define TX_APP_MEM_POOL_SIZE                     4096
-
-#define FX_APP_MEM_POOL_SIZE                     8192
-
-#define NX_APP_MEM_POOL_SIZE                     24576
-
-#define UX_DEVICE_APP_MEM_POOL_SIZE              4096
-
 /* USER CODE BEGIN EC */
 
 /* USER CODE END EC */
@@ -65,6 +54,10 @@ extern "C" {
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
+VOID USBD_CDC_ACM_Activate(VOID *cdc_acm_instance);
+VOID USBD_CDC_ACM_Deactivate(VOID *cdc_acm_instance);
+VOID USBD_CDC_ACM_ParameterChange(VOID *cdc_acm_instance);
+
 /* USER CODE BEGIN EFP */
 
 /* USER CODE END EFP */
@@ -81,5 +74,4 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* APP_AZURE_RTOS_CONFIG_H */
+#endif  /* __UX_DEVICE_CDC_ACM_H__ */
