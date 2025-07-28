@@ -43,10 +43,6 @@
 /**
  * Error codes for hub responses
  */
-// #define HUB_RSP_OK 0
-// #define HUB_RSP_ERR_UNKNOWN_TARGET 1
-// #define HUB_RSP_ERR_UNKNOWN_CMD 2
-// #define HUB_RSP_ERR_CRC 3
 typedef enum {
     HUB_RSP_OK = 0,
     HUB_RSP_ERR_UNKNOWN_TARGET,
@@ -64,7 +60,7 @@ typedef enum {
 } hub_operation_t;
 
 /* CMD */
-typedef struct __attribute__((packed, aligned(4))) {
+typedef struct __attribute__((packed, aligned(32))) {
     uint8_t  target;
     hub_operation_t  operation;
     uint16_t len;          /* payload len (byte) */
@@ -73,7 +69,7 @@ typedef struct __attribute__((packed, aligned(4))) {
 } hub_cmd_t;
 
 /* RSP */
-typedef struct __attribute__((packed, aligned(4))) {
+typedef struct __attribute__((packed, aligned(32))) {
     hub_rsp_status_t  status;
     uint8_t  reserved;
     uint16_t len;

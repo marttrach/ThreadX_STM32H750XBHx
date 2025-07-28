@@ -24,15 +24,19 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "app_usbx_device.h"
-
+#include "iot.h"
+#include "ux_api.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+UINT  ux_error_code = 0;
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+VOID  my_ux_error_callback(UINT system_level, UINT system_context, UINT error_code)
+{
+    ux_error_code = error_code; /* 全域暫存，方便 printf */
+}
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -108,18 +112,28 @@ UINT MX_USBX_Device_Init(VOID *memory_ptr)
   /* Get Device Framework High Speed and get the length */
   device_framework_high_speed = USBD_Get_Device_Framework_Speed(USBD_HIGH_SPEED,
                                                                 &device_framework_hs_length);
-
+  if (!device_framework_high_speed || device_framework_hs_length == 0)
+  {
+      DEBUG_DUMP(IOT_LOG_DEBUG, "HS descriptor missing!\r\n");
+  }
+  DEBUG_DUMP(IOT_LOG_DEBUG, "Device Framework HS Length: %lu\r\n", device_framework_hs_length);
   /* Get Device Framework Full Speed and get the length */
   device_framework_full_speed = USBD_Get_Device_Framework_Speed(USBD_FULL_SPEED,
                                                                 &device_framework_fs_length);
-
+  if (!device_framework_full_speed || device_framework_fs_length == 0)
+  {
+      DEBUG_DUMP(IOT_LOG_DEBUG, "FS descriptor missing!\r\n");
+  }
+  DEBUG_DUMP(IOT_LOG_DEBUG, "Device Framework FS Length: %lu\r\n", device_framework_fs_length);
   /* Get String Framework and get the length */
   string_framework = USBD_Get_String_Framework(&string_framework_length);
+  DEBUG_DUMP(IOT_LOG_DEBUG, "String Framework Length: %lu\r\n", string_framework_length);
 
   /* Get Language Id Framework and get the length */
   language_id_framework = USBD_Get_Language_Id_Framework(&language_id_framework_length);
-
+  DEBUG_DUMP(IOT_LOG_DEBUG, "Language Id Framework Length: %lu\r\n", language_id_framework_length);
   /* Install the device portion of USBX */
+  ux_utility_error_callback_register(my_ux_error_callback);
   if (ux_device_stack_initialize(device_framework_high_speed,
                                  device_framework_hs_length,
                                  device_framework_full_speed,
@@ -131,6 +145,8 @@ UINT MX_USBX_Device_Init(VOID *memory_ptr)
                                  UX_NULL) != UX_SUCCESS)
   {
     /* USER CODE BEGIN USBX_DEVICE_INITIALIZE_ERROR */
+    DEBUG_DUMP(IOT_LOG_DEBUG, "ux_device_stack_initialize  last_err = 0x%02X\r\n", ux_error_code);
+    DEBUG_DUMP(IOT_LOG_DEBUG, "USBX Device Initialization failed\r\n");
     return UX_ERROR;
     /* USER CODE END USBX_DEVICE_INITIALIZE_ERROR */
   }

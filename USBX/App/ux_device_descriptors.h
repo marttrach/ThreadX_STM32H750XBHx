@@ -273,7 +273,7 @@ uint16_t USBD_Get_Configuration_Number(uint8_t class_type, uint8_t interface_typ
 #define USBD_PID                                      22288
 #define USBD_LANGID_STRING                            1033
 #define USBD_MANUFACTURER_STRING                      "IOT-HMI"
-#define USBD_PRODUCT_STRING                           "IOT-HMI DUAL VCP"
+#define USBD_PRODUCT_STRING                           "IOT-HMI-DUAL"
 #define USBD_SERIAL_NUMBER                            "000054998065"
 
 #define USB_DESC_TYPE_INTERFACE                       0x04U

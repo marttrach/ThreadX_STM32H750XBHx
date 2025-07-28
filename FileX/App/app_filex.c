@@ -28,7 +28,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "iot.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -136,12 +136,15 @@ UINT MX_FileX_Init(VOID *memory_ptr)
  */
 void fx_app_thread_entry(ULONG thread_input)
 {
+#if 0
   UINT sram_status = FX_SUCCESS;
+#endif
   UINT sd_status = FX_SUCCESS;
   /* USER CODE BEGIN fx_app_thread_entry 0 */
 
   /* USER CODE END fx_app_thread_entry 0 */
 
+#if 0
   /* Format the SRAM_BASE memory as FAT */
   sram_status =  fx_media_format(&sram_disk,                              // RamDisk pointer
                                  fx_stm32_sram_driver,                    // Driver entry
@@ -176,6 +179,7 @@ void fx_app_thread_entry(ULONG thread_input)
     while(1);
     /* USER CODE END SRAM DRIVER open error */
   }
+#endif
 
   /* Open the SD disk driver */
   sd_status =  fx_media_open(&sdio_disk, FX_SD_VOLUME_NAME, fx_stm32_sd_driver, (VOID *)FX_NULL, (VOID *) fx_sd_media_memory, sizeof(fx_sd_media_memory));
@@ -183,13 +187,14 @@ void fx_app_thread_entry(ULONG thread_input)
   /* Check the media open sd_status */
   if (sd_status != FX_SUCCESS)
   {
+    DEBUG_DUMP(IOT_LOG_DEBUG, "SD media open failed with status %d\r\n", sd_status);
     /* USER CODE BEGIN SD open error */
     while(1);
     /* USER CODE END SD open error */
   }
 
   /* USER CODE BEGIN fx_app_thread_entry 1 */
-
+  DEBUG_DUMP(IOT_LOG_DEBUG, "FileX application thread started successfully\r\n");
   /* USER CODE END fx_app_thread_entry 1 */
 }
 

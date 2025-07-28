@@ -8,6 +8,7 @@
 #include "dac.h"
 #include "adc.h"
 #include "crc.h"
+#include "app_filex.h"
 
 static TX_QUEUE cmd_queue;
 static TX_QUEUE rsp_queue;
@@ -72,6 +73,7 @@ void iot_hub_start(void)
                  10, 10, TX_NO_TIME_SLICE, TX_DONT_START);
     HAL_I2C_EnableListen_IT(&hi2c2);
     tx_thread_resume(&worker_thread);
+    // tx_thread_resume(&fx_app_thread);
 }
 
 static uint32_t iot_hub_crc32(const uint8_t *buf, size_t len)

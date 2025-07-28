@@ -52,7 +52,7 @@ extern "C" {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
-
+extern TX_THREAD fx_app_thread;
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/

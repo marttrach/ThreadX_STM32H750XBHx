@@ -32,7 +32,7 @@ set(MX_Include_Dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-filex/common/inc/
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-filex/ports/generic/inc/
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/usbx_device_classes/inc/
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/inc/
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/inc/
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/ports/generic/inc/
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/usbx_stm32_device_controllers/
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-netxduo/addons/auto_ip/
@@ -190,89 +190,89 @@ set(USBX_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/usbx_stm32_device_controllers/ux_dcd_stm32_transfer_abort.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/usbx_stm32_device_controllers/ux_dcd_stm32_transfer_request.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/usbx_stm32_device_controllers/ux_dcd_stm32_uninitialize.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_debug_callback_register.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_debug_log.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_delay_ms.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_descriptor_pack.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_descriptor_parse.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_error_callback_register.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_event_flags_create.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_event_flags_delete.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_event_flags_get.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_event_flags_set.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_long_get.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_long_get_big_endian.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_long_put.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_long_put_big_endian.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_memory_allocate.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_memory_allocate_add_safe.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_memory_allocate_mulc_safe.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_memory_allocate_mulv_safe.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_memory_compare.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_memory_copy.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_memory_free.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_memory_byte_pool_create.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_memory_byte_pool_search.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_memory_set.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_mutex_create.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_mutex_delete.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_mutex_off.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_mutex_on.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_pci_class_scan.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_pci_read.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_pci_write.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_physical_address.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_semaphore_create.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_semaphore_delete.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_semaphore_get.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_semaphore_put.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_set_interrupt_handler.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_short_get.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_short_get_big_endian.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_short_put.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_short_put_big_endian.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_string_length_check.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_string_length_get.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_string_to_unicode.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_thread_create.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_thread_delete.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_thread_identify.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_thread_relinquish.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_thread_resume.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_thread_schedule_other.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_thread_sleep.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_thread_suspend.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_timer_create.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_timer_delete.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_unicode_to_string.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_utility_virtual_address.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_system_error_handler.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_system_initialize.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_system_uninitialize.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_alternate_setting_get.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_alternate_setting_set.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_class_register.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_class_unregister.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_clear_feature.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_configuration_get.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_configuration_set.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_control_request_process.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_descriptor_send.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_disconnect.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_endpoint_stall.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_get_status.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_host_wakeup.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_initialize.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_interface_delete.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_interface_get.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_interface_set.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_interface_start.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_microsoft_extension_register.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_set_feature.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_transfer_abort.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_transfer_all_request_abort.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_transfer_request.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_device_stack_uninitialize.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_debug_callback_register.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_debug_log.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_delay_ms.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_descriptor_pack.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_descriptor_parse.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_error_callback_register.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_event_flags_create.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_event_flags_delete.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_event_flags_get.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_event_flags_set.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_long_get.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_long_get_big_endian.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_long_put.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_long_put_big_endian.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_memory_allocate.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_memory_allocate_add_safe.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_memory_allocate_mulc_safe.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_memory_allocate_mulv_safe.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_memory_compare.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_memory_copy.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_memory_free.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_memory_byte_pool_create.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_memory_byte_pool_search.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_memory_set.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_mutex_create.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_mutex_delete.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_mutex_off.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_mutex_on.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_pci_class_scan.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_pci_read.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_pci_write.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_physical_address.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_semaphore_create.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_semaphore_delete.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_semaphore_get.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_semaphore_put.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_set_interrupt_handler.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_short_get.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_short_get_big_endian.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_short_put.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_short_put_big_endian.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_string_length_check.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_string_length_get.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_string_to_unicode.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_thread_create.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_thread_delete.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_thread_identify.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_thread_relinquish.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_thread_resume.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_thread_schedule_other.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_thread_sleep.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_thread_suspend.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_timer_create.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_timer_delete.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_unicode_to_string.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_utility_virtual_address.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_system_error_handler.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_system_initialize.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_system_uninitialize.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_alternate_setting_get.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_alternate_setting_set.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_class_register.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_class_unregister.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_clear_feature.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_configuration_get.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_configuration_set.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_control_request_process.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_descriptor_send.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_disconnect.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_endpoint_stall.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_get_status.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_host_wakeup.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_initialize.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_interface_delete.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_interface_get.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_interface_set.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_interface_start.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_microsoft_extension_register.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_set_feature.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_transfer_abort.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_transfer_all_request_abort.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_transfer_request.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_device_stack_uninitialize.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/usbx_device_classes/src/ux_device_class_storage_activate.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/usbx_device_classes/src/ux_device_class_storage_control_request.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/usbx_device_classes/src/ux_device_class_storage_csw_send.c
@@ -571,10 +571,10 @@ set(ThreadX_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-netxduo/common/src/nx_trace_event_update.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-netxduo/common/src/nx_trace_object_register.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-netxduo/common/src/nx_trace_object_unregister.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_trace_event_insert.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_trace_event_update.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_trace_object_register.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/src/ux_trace_object_unregister.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_trace_event_insert.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_trace_event_update.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_trace_object_register.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-usbx/common/core/src/ux_trace_object_unregister.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-filex/common/src/fx_trace_event_insert.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-filex/common/src/fx_trace_event_update.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-filex/common/src/fx_trace_object_register.c
