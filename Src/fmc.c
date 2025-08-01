@@ -20,9 +20,11 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "fmc.h"
-
+#include "is42s32800g.h"
+#include "iot.h"
 /* USER CODE BEGIN 0 */
-
+#define IS42SM32_HW_SDRAM_REFRESH_RATE       (64) // ms
+#define IS42SM32_HW_REFRESH_COUNT (IS42SM32_HW_SDRAM_REFRESH_RATE * 100000 / 4096 - 20)
 /* USER CODE END 0 */
 
 SDRAM_HandleTypeDef hsdram1;
@@ -49,7 +51,7 @@ void MX_FMC_Init(void)
   hsdram1.Init.RowBitsNumber = FMC_SDRAM_ROW_BITS_NUM_12;
   hsdram1.Init.MemoryDataWidth = FMC_SDRAM_MEM_BUS_WIDTH_32;
   hsdram1.Init.InternalBankNumber = FMC_SDRAM_INTERN_BANKS_NUM_4;
-  hsdram1.Init.CASLatency = FMC_SDRAM_CAS_LATENCY_1;
+  hsdram1.Init.CASLatency = FMC_SDRAM_CAS_LATENCY_2;
   hsdram1.Init.WriteProtection = FMC_SDRAM_WRITE_PROTECTION_DISABLE;
   hsdram1.Init.SDClockPeriod = FMC_SDRAM_CLOCK_PERIOD_2;
   hsdram1.Init.ReadBurst = FMC_SDRAM_RBURST_ENABLE;
@@ -59,7 +61,7 @@ void MX_FMC_Init(void)
   SdramTiming.ExitSelfRefreshDelay = 8;
   SdramTiming.SelfRefreshTime = 5;
   SdramTiming.RowCycleDelay = 6;
-  SdramTiming.WriteRecoveryTime = 3;
+  SdramTiming.WriteRecoveryTime = 2;
   SdramTiming.RPDelay = 2;
   SdramTiming.RCDDelay = 2;
 
@@ -69,7 +71,22 @@ void MX_FMC_Init(void)
   }
 
   /* USER CODE BEGIN FMC_Init 2 */
-
+  SDRAM_HandleTypeDef *Ctx = &hsdram1;
+  IS42S32800G_Context_t RegMode = {
+      .TargetBank = FMC_SDRAM_CMD_TARGET_BANK1,
+      .RefreshMode = IS42S32800G_AUTOREFRESH_MODE_CMD,
+      .RefreshRate = IS42SM32_HW_REFRESH_COUNT,
+      .BurstLength = IS42S32800G_BURST_LENGTH_1,
+      .BurstType = IS42S32800G_BURST_TYPE_SEQUENTIAL,
+      .CASLatency = IS42S32800G_CAS_LATENCY_2,
+      .OperationMode = IS42S32800G_OPERATING_MODE_STANDARD,
+      .WriteBurstMode = IS42S32800G_WRITEBURST_MODE_SINGLE,
+  };
+  
+  if (IS42S32800G_Init(Ctx, &RegMode) != IS42S32800G_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE END FMC_Init 2 */
 }
 

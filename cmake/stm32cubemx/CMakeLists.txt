@@ -94,6 +94,7 @@ set(MX_Application_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/sysmem.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/syscalls.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/i2c_hub.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/i2c_hub_uart.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../startup_stm32h750xx.s
 )
 

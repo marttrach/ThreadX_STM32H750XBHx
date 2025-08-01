@@ -85,7 +85,59 @@ int _write(int fd, char *ptr, int len)
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+int __attribute__((optimize("O0"))) sdram_test(int fast) {
+    uint8_t const pattern = 0xaa;
+    uint8_t const antipattern = 0x55;
+    uint8_t *const mem_base = (uint8_t*)SDRAM_START_ADDRESS;
 
+    DEBUG_DUMP(IOT_LOG_INFO,"Starting to sdram test, addr=%0x\r\n", SDRAM_START_ADDRESS);
+    /* test data bus */
+    for (uint8_t i = 1; i; i <<= 1) {
+        *mem_base = i;
+        if (*mem_base != i) {
+            DEBUG_DUMP(IOT_LOG_ERR,"data bus lines test failed! data (%d)\r\n", i);
+            __asm__ volatile ("BKPT");
+        }
+    }
+    DEBUG_DUMP(IOT_LOG_INFO,"data bus lines test done\r\n");
+
+    /* test address bus */
+    /* Check individual address lines */
+    for (uint32_t i = 1; i < HW_SDRAM_SIZE; i <<= 1) {
+        mem_base[i] = pattern;
+        if (mem_base[i] != pattern) {
+            DEBUG_DUMP(IOT_LOG_ERR, "address bus lines test failed! address (%p)\r\n", &mem_base[i]);
+            __asm__ volatile ("BKPT");
+        }
+    }
+    DEBUG_DUMP(IOT_LOG_INFO,"address bus lines test done\r\n");
+
+    /* Check for aliasing (overlaping addresses) */
+    mem_base[0] = antipattern;
+    for (uint32_t i = 1; i < HW_SDRAM_SIZE; i <<= 1) {
+        if (mem_base[i] != pattern) {
+            DEBUG_DUMP(IOT_LOG_ERR,"address bus overlap %p\r\n", &mem_base[i]);
+            __asm__ volatile ("BKPT");
+        }
+    }
+    DEBUG_DUMP(IOT_LOG_INFO,"address bus overlaping test done\r\n");
+
+    /* test all ram cells */
+    if (!fast) {
+        for (uint32_t i = 0; i < HW_SDRAM_SIZE; ++i) {
+            mem_base[i] = pattern;
+            if (mem_base[i] != pattern) {
+                DEBUG_DUMP(IOT_LOG_ERR,"address bus test failed! address (%p)\r\n", &mem_base[i]);
+                __asm__ volatile ("BKPT");
+            }
+        }
+    } else {
+        memset(mem_base, pattern, HW_SDRAM_SIZE);
+    }
+    DEBUG_DUMP(IOT_LOG_INFO,"all test done\r\n");
+
+    return 0;
+}
 /* USER CODE END 0 */
 
 /**
@@ -131,6 +183,8 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_UART5_Init();
+  MX_FMC_Init();
   MX_DMA_Init();
   MX_MDMA_Init();
   MX_ADC1_Init();
@@ -151,14 +205,15 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM8_Init();
   MX_TIM12_Init();
-  MX_UART5_Init();
   MX_UART7_Init();
   MX_UART8_Init();
-  MX_FMC_Init();
   // MX_USB_OTG_FS_PCD_Init();
   MX_CRYP_Init();
   /* USER CODE BEGIN 2 */
-
+#if 0
+  /* SDRAM test */
+  sdram_test(0); 
+#endif
   /* USER CODE END 2 */
 
   MX_ThreadX_Init();

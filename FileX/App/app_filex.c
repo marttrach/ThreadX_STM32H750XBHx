@@ -28,7 +28,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "iot.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -187,14 +187,13 @@ void fx_app_thread_entry(ULONG thread_input)
   /* Check the media open sd_status */
   if (sd_status != FX_SUCCESS)
   {
-    DEBUG_DUMP(IOT_LOG_DEBUG, "SD media open failed with status %d\r\n", sd_status);
     /* USER CODE BEGIN SD open error */
     while(1);
     /* USER CODE END SD open error */
   }
 
   /* USER CODE BEGIN fx_app_thread_entry 1 */
-  DEBUG_DUMP(IOT_LOG_DEBUG, "FileX application thread started successfully\r\n");
+
   /* USER CODE END fx_app_thread_entry 1 */
 }
 
