@@ -80,7 +80,10 @@ static TX_BYTE_POOL nx_app_byte_pool;
 #endif
 __ALIGN_BEGIN static UCHAR ux_device_byte_pool_buffer[UX_DEVICE_APP_MEM_POOL_SIZE] __ALIGN_END;
 static TX_BYTE_POOL ux_device_app_byte_pool;
-
+#else
+static TX_BYTE_POOL tx_app_byte_pool;
+static TX_BYTE_POOL fx_app_byte_pool;
+static TX_BYTE_POOL nx_app_byte_pool;
 #endif
 
 /* USER CODE BEGIN PV */
@@ -90,6 +93,8 @@ static TX_BYTE_POOL ux_device_app_byte_pool;
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
 
+extern uint8_t _tx_heap_start;
+extern uint8_t _tx_heap_end;
 /* USER CODE END PFP */
 
 /**
@@ -252,9 +257,55 @@ VOID tx_application_define(VOID *first_unused_memory)
 
   /* USER CODE BEGIN DYNAMIC_MEM_ALLOC */
   (void)first_unused_memory;
-  /* USER CODE END DYNAMIC_MEM_ALLOC */
-#endif
+  UINT status = TX_SUCCESS;
+  VOID *memory_ptr;
+  
+  UCHAR *tx_byte_pool_buffer = (UCHAR*)&_tx_heap_start;
+  UCHAR *fx_byte_pool_buffer = (UCHAR*)&_tx_heap_start + TX_APP_MEM_POOL_SIZE;
+  UCHAR *nx_byte_pool_buffer = fx_byte_pool_buffer + FX_APP_MEM_POOL_SIZE;
 
+  if (tx_byte_pool_create(&tx_app_byte_pool, "Tx App memory pool", tx_byte_pool_buffer, TX_APP_MEM_POOL_SIZE) != TX_SUCCESS)
+  {
+  }
+  else
+  {
+    memory_ptr = (VOID *)&tx_app_byte_pool;
+    status = App_ThreadX_Init(memory_ptr);
+    if (status != TX_SUCCESS)
+    {
+      while(1)
+      {
+      }
+    }
+  }
+  if (tx_byte_pool_create(&fx_app_byte_pool, "Fx App memory pool", fx_byte_pool_buffer, FX_APP_MEM_POOL_SIZE) != TX_SUCCESS)
+  {
+  }
+  else{
+    memory_ptr = (VOID *)&fx_app_byte_pool;
+    status = MX_FileX_Init(memory_ptr);
+    if (status != FX_SUCCESS)
+    {
+      while(1)
+      {
+      }
+    }
+  }
+  if (tx_byte_pool_create(&nx_app_byte_pool, "Nx App memory pool", nx_byte_pool_buffer, NX_APP_MEM_POOL_SIZE) != TX_SUCCESS)
+  {
+  }
+  else{
+    memory_ptr = (VOID *)&nx_app_byte_pool;
+    status = MX_NetXDuo_Init(memory_ptr);
+    if (status != NX_SUCCESS)
+    {
+      while(1)
+      {
+      }
+    }
+  }
+#endif
+/* USER CODE END DYNAMIC_MEM_ALLOC */
 }
 
 /* USER CODE BEGIN 2 */

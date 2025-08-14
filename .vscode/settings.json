@@ -1,5 +1,14 @@
 {
     "files.associations": {
-        "fmc.h": "c"
+        "fmc.h": "c",
+        "sdmmc.h": "c",
+        "rng.h": "c",
+        "spi.h": "c",
+        "iot_util.h": "c",
+        "i2c_hub_uart.h": "c",
+        "i2c_hub_mem.h": "c",
+        "i2c_hub.h": "c",
+        "app_threadx.h": "c",
+        "type_traits": "c"
     }
 }

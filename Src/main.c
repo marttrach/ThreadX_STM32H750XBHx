@@ -59,7 +59,9 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+// extern uint32_t _sdram_stack_top;
+// extern uint32_t _sdram_heap_start;
+// extern uint32_t _sdram_heap_end;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -210,12 +212,41 @@ int main(void)
   // MX_USB_OTG_FS_PCD_Init();
   MX_CRYP_Init();
   /* USER CODE BEGIN 2 */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_SET); //WIFI NormalMode Pull High
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_5, GPIO_PIN_RESET); //WIFI EN-Pin Pull Low
 #if 0
   /* SDRAM test */
   sdram_test(0); 
 #endif
   /* USER CODE END 2 */
 
+  /**
+   * can test system mem call rewrite verified
+   * should print 0xc start
+   */
+  // uint8_t *a;
+  // a = malloc(10);
+  // cache_clean(a, 10);
+  // for(uint8_t i = 0 ; i < 10; i++){
+  //   DEBUG_DUMP(IOT_LOG_DEBUG, "%d ", a[i]);
+  // }
+  // DEBUG_DUMP(IOT_LOG_DEBUG, "\r\n");
+  // for(uint8_t i = 0 ; i < 10; i++){
+  //   a[i] = i;
+  // }
+  // cache_clean(a, 10);
+  // for(uint8_t i = 0 ; i < 10; i++){
+  //   DEBUG_DUMP(IOT_LOG_DEBUG, "%d ", a[i]);
+  // }
+  // DEBUG_DUMP(IOT_LOG_DEBUG, "\r\n");
+  // DEBUG_DUMP(IOT_LOG_DEBUG,"malloc @ %p\r\n", a);
+  // DEBUG_DUMP(IOT_LOG_DEBUG,"malloc @ %p\r\n", a);
+#if 0
+  __disable_irq();
+  __set_MSP((uint32_t)&_sdram_stack_top);
+  __enable_irq();
+  SCB_CleanInvalidateDCache();
+#endif
   MX_ThreadX_Init();
 
   /* We should never get here as control is now taken by the scheduler */
@@ -322,9 +353,11 @@ void PeriphCommonClock_Config(void)
   PeriphClkInitStruct.PLL2.PLL2VCOSEL = RCC_PLL2VCOWIDE;
   PeriphClkInitStruct.PLL2.PLL2FRACN = 0;
   PeriphClkInitStruct.PLL3.PLL3M = 32;
+  // PeriphClkInitStruct.PLL3.PLL3N = 120;
   PeriphClkInitStruct.PLL3.PLL3N = 128;
   PeriphClkInitStruct.PLL3.PLL3P = 16;
   PeriphClkInitStruct.PLL3.PLL3Q = 16;
+  // PeriphClkInitStruct.PLL3.PLL3Q = 10;
   PeriphClkInitStruct.PLL3.PLL3R = 8;
   PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_1;
   PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOMEDIUM;
@@ -385,6 +418,7 @@ void MPU_Config(void)
   MPU_InitStruct.Size = MPU_REGION_SIZE_32MB;
   MPU_InitStruct.TypeExtField = MPU_TEX_LEVEL1;
   MPU_InitStruct.IsBufferable = MPU_ACCESS_BUFFERABLE;
+  MPU_InitStruct.IsShareable = MPU_ACCESS_SHAREABLE;
 
   HAL_MPU_ConfigRegion(&MPU_InitStruct);
   /* Enables the MPU */

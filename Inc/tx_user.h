@@ -111,7 +111,7 @@
 /* Override various options with default values already assigned in tx_port.h. Please also refer
    to tx_port.h for descriptions on each of these options.  */
 
-/*#define TX_MAX_PRIORITIES                32*/
+#define TX_MAX_PRIORITIES                32
 /*#define TX_TIMER_THREAD_STACK_SIZE                1024*/
 /*#define TX_TIMER_THREAD_PRIORITY                0*/
 
@@ -162,7 +162,7 @@
    the .bss section prior to ThreadX running, the define can be used to eliminate unnecessary
    clearing of ThreadX global variables.  */
 
-/*#define TX_DISABLE_REDUNDANT_CLEARING*/
+#define TX_DISABLE_REDUNDANT_CLEARING
 
 /* Determine if no timer processing is required. This option will help eliminate the timer
    processing when not needed. The user will also have to comment out the call to
@@ -185,7 +185,7 @@
 
 /*Defined, the basic parameter error checking is disabled.*/
 
-/*#define TX_DISABLE_ERROR_CHECKING*/
+/*#define TX_DISABLE_ERROR_CHECKING */
 
 /* Determine if the tx_thread_resume and tx_thread_suspend services should have their internal
    code in-line. This results in a larger image, but improves the performance of the thread

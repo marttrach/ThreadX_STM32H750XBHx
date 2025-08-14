@@ -3,17 +3,24 @@
 
 #include "stm32h7xx_hal.h"
 #include "app_threadx.h"
+#include "i2c_hub_mem.h"
 
 #define ALIGN32(x)   (((x) + 31U) & ~31U)
 #ifndef MIN
 #define MIN(a, b)  (( (a) < (b) ) ? (a) : (b))
 #endif
+
+// extern hub_spsc_arena_t g_hub_rx_arena;  // Producer: I2C2, Consumer: worker
+// extern hub_spsc_arena_t g_hub_tx_arena;  // Producer: worker , Consumer: I2C2
+
 /**
  * I2C Hub definitions
  * This file defines the structure and functions for the I2C hub communication.
  */
 #define HUB_I2C_ADDR 0x36
 #define QUEUE_LEN    10
+#define I2C_STAGE_Q_LEN   32U
+#define I2C_SIZE_MTU 255
 
 /* Command targets */
 #define HUB_TARGET_UART 0 //Now only UART 8
@@ -47,21 +54,47 @@
 /**
  * Error codes for hub responses
  */
-typedef enum {
+typedef enum __attribute__((packed)) {
     HUB_RSP_OK = 0,
     HUB_RSP_ERR_UNKNOWN_TARGET,
     HUB_RSP_ERR_UNKNOWN_CMD,
+    HUB_RSP_ERR_MEMORY,
     HUB_RSP_ERR_CRC,
     HUB_RSP_ERR_NONE
 } hub_rsp_status_t;
 
 /* Generic operations used by the state machine */
-typedef enum {
+typedef enum __attribute__((packed)) {
     HUB_OP_NOP = 0,
     HUB_OP_WRITE,
     HUB_OP_READ,
     HUB_OP_CONFIG
 } hub_operation_t;
+
+
+typedef enum { 
+    TX_STAGE_HDR, 
+    TX_STAGE_PAY 
+} tx_stage_t;
+
+// typedef enum { 
+//     RX_STAGE_HDR, 
+//     RX_STAGE_PAY 
+// } rx_stage_t;
+
+typedef struct {
+    uint8_t  *buf;
+    uint32_t  total;
+    uint32_t  sent;
+    tx_stage_t stage_tx;
+} hub_tx_task_t;
+
+// typedef struct {
+//     uint8_t  *buf;
+//     uint32_t  total;
+//     uint32_t  sent;
+//     rx_stage_t stage_rx;
+// } hub_rx_task_t;
 
 /* CMD */
 typedef struct __attribute__((packed, aligned(4))) {
@@ -81,17 +114,13 @@ typedef struct __attribute__((packed, aligned(4))) {
     uint8_t payload[]; /* Variable length payload */
 } hub_rsp_t;
 
-typedef enum { 
-    TX_STAGE_HDR, 
-    TX_STAGE_PAY 
-} tx_stage_t;
-
-typedef struct {
-    uint8_t   *buf;
-    uint16_t   total;
-    uint16_t   sent;
-    tx_stage_t stage;
-} hub_tx_ctx_t;
+typedef struct __attribute__((packed, aligned(4))) {
+    uint32_t        tag;       /* HUB_ERR_TAG */
+    hub_rsp_status_t status;   /* HUB_RSP_ERR_* */
+    uint32_t        data_addr; /* cmd header data_addr */
+    void           *rx_ptr;
+    uint32_t        rx_len;
+} hub_err_evt_t;
 
 /* PIN PACK */
 typedef struct __attribute__((packed)){
@@ -100,8 +129,7 @@ typedef struct __attribute__((packed)){
     uint8_t  af;              /* Alternate Function (0 = no change) */
 } hub_cfg_payload_t;
 
-#define MSG_WORDS_CMD  ((sizeof(hub_cmd_t) + sizeof(ULONG) - 1) / sizeof(ULONG))
-#define MSG_WORDS_RSP  ((sizeof(hub_rsp_t) + sizeof(ULONG) - 1) / sizeof(ULONG))
+#define STAGE_WORDS_RSP  ((sizeof(hub_tx_task_t) + sizeof(ULONG) - 1) / sizeof(ULONG))
 #define CMD_HDR_SZ   (offsetof(hub_cmd_t, data_addr) + 4)   /* 8B */
 #define RSP_HDR_SZ   (offsetof(hub_rsp_t, data_addr) + 4)   /* 8B*/
 #define DUMMY_CHUNK  32

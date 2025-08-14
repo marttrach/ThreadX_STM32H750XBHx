@@ -21,7 +21,7 @@
 //  Caution: Make sure that ThreadX does not need more than the provided heap memory (64KBytes in this example).
 //  Read more in STM32CubeIDE User Guide, chapter: "Linker script".
 
-//#define USE_DYNAMIC_MEMORY_ALLOCATION
+#define USE_DYNAMIC_MEMORY_ALLOCATION
 
 #if defined (__ARMCC_VERSION) /* For arm compiler 5 & 6 */
 @/**************************************************************************/

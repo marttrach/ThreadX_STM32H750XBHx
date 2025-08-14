@@ -18,7 +18,7 @@
 #define DEBUG_DUMP(...)  do{}while(0)
 #else
 #include <stdio.h>
-#if 0 // Use this section for ThreadX debugging
+#if 0 /* Use this section for ThreadX debugging */
 #include "tx_api.h"
 static TX_MUTEX iot_debug_mutex;
 #define DEBUG_DUMP(Lv, fmt, ...)                                               \

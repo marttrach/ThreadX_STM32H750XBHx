@@ -74,7 +74,7 @@ UINT MX_FileX_Init(VOID *memory_ptr);
 
 /* Main thread auto start */
 #ifndef FX_APP_THREAD_AUTO_START
-  #define FX_APP_THREAD_AUTO_START TX_DONT_START
+  #define FX_APP_THREAD_AUTO_START TX_AUTO_START
 #endif
 
 /* Main thread preemption threshold */

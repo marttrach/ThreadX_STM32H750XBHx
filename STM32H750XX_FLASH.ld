@@ -66,8 +66,8 @@ FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 128K
 /* Highest address of the user mode stack */
 _estack = ORIGIN(DTCMRAM) + LENGTH(DTCMRAM);    /* end of RAM */
 /* Generate a link error if heap and stack don't fit into RAM */
-_Min_Heap_Size = 0x2000;      /* required amount of heap  */
-_Min_Stack_Size = 0x16000; /* required amount of stack */
+_Min_Heap_Size  = 96K;
+_Min_Stack_Size = 8K;
 
 /* Define output sections */
 SECTIONS
@@ -224,10 +224,27 @@ SECTIONS
     __bss_end__ = _ebss;
       PROVIDE( __bss_end = .);
   } >RAM
+
   PROVIDE( __non_tls_bss_start = ADDR(.bss) );
 
   PROVIDE( __bss_start = __tbss_start );
   PROVIDE( __bss_size = __bss_end - __bss_start );
+
+  ._threadx_heap (NOLOAD):
+  {
+    . = ALIGN(8);
+    __RAM_segment_used_end__ = . ;
+    _tx_heap_start = .;
+    . = . + 384K;
+    _tx_heap_end   = .;
+    . = ALIGN(8);
+    /*
+    . = ALIGN(8);
+    _sdram_stack_bottom = .;
+    . = . + _Min_Stack_Size;
+    _sdram_stack_top = .;
+    */
+  } >RAM
 
   /* User_heap_stack section, used to check that there is enough RAM left */
   ._user_heap_stack (NOLOAD) :
