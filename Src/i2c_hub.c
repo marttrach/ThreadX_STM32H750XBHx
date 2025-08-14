@@ -20,26 +20,72 @@ static TX_THREAD worker_thread;
 
 static VOID worker_thread_entry(ULONG arg);
 
-static uint32_t* hub_mem_base = (uint32_t*)HUB_SDRAM_BASE;
+static uint8_t  rx_hdr[CMD_HDR_SZ] __attribute__((aligned(32)));
+static hub_cmd_t *rx_hdr_ptr = (hub_cmd_t *)rx_hdr;
+static uint8_t *rx_frame_ptr = NULL;   // header + payload + CRC
 
-uint8_t  rx_hdr[CMD_HDR_SZ]  __attribute__((aligned(32)));
-hub_cmd_t *rx_hdr_ptr = (hub_cmd_t *)rx_hdr;
-uint8_t *rx_frame_ptr = NULL;   // header + payload + CRC
-uint16_t rx_plen      = 0;
-static enum { RX_STAGE_HDR, RX_STAGE_PAY } rx_stage = RX_STAGE_HDR;
+static uint8_t  tx_hdr[RSP_HDR_SZ]  __attribute__((aligned(32)));
+static hub_rsp_t *tx_hdr_ptr = (hub_rsp_t *)tx_hdr;
+static uint8_t *tx_frame_ptr = NULL;   // header + payload + CRC
 
-uint8_t  tx_hdr[RSP_HDR_SZ]  __attribute__((aligned(32)));
-hub_rsp_t *tx_hdr_ptr = (hub_rsp_t *)tx_hdr;
-uint8_t *tx_frame_ptr = NULL;   // header + payload + CRC
+static volatile hub_tx_task_t *cur_tx;
+static volatile hub_rx_task_t cur_rx = {
+    .buf      = NULL,
+    .total    = 0,
+    .sent     = 0,
+    .stage_rx = RX_STAGE_HDR,
+};
 
-volatile hub_tx_task_t *cur_tx;
+/* Transacion Init*/
+static volatile rx_txn_t g_rx_txn = {0};
+
+/* Start RX TX Transaction commit section */
+static inline void rx_txn_begin(uint8_t *p, uint32_t total, uint32_t mark)
+{
+    g_rx_txn.ptr       = p;
+    g_rx_txn.total     = total;
+    g_rx_txn.head_mark = mark;
+    g_rx_txn.active    = 1;
+}
+
+static inline void rx_txn_commit(void)
+{
+    g_rx_txn.active = 0;
+}
+
+static inline void rx_txn_rollback(const char *reason)
+{
+    (void)reason;
+    if (g_rx_txn.active && g_rx_txn.ptr) {
+        hub_spsc_undo_alloc_to(&g_hub_rx_arena, g_rx_txn.head_mark);
+    }
+    g_rx_txn.ptr      = NULL;
+    g_rx_txn.total    = 0;
+    g_rx_txn.head_mark= 0;
+    g_rx_txn.active   = 0;
+
+    cur_rx.stage_rx  = RX_STAGE_HDR;
+    cur_rx.buf       = NULL;
+    cur_rx.total     = 0;
+    cur_rx.sent      = 0;
+}
+
+static inline void tx_cancel_in_isr(void)
+{
+    if (cur_tx) {
+        uint32_t full_len = ALIGN32(cur_tx->total);
+        hub_sdram_free_tx((void*)cur_tx->buf, full_len);
+        hub_sdram_free_tx((void*)cur_tx, ALIGN32(sizeof(hub_tx_task_t)));
+        cur_tx = NULL;
+    }
+}
+/* End RX TX Transaction commit section */
 
 void HAL_I2C_AddrCallback(I2C_HandleTypeDef *hi2c, uint8_t dir, uint16_t addr7)
 {
     if (hi2c != &hi2c2 || addr7 != HUB_I2C_ADDR) return;
     if (dir == I2C_DIRECTION_TRANSMIT)      /* Master to Slave */
     {
-        // dcache_clean32_range(&rx_hdr, CMD_HDR_SZ);
         HAL_I2C_Slave_Seq_Receive_DMA(hi2c, rx_hdr, CMD_HDR_SZ, I2C_LAST_FRAME);
     }else if (dir == I2C_DIRECTION_RECEIVE) {
         if (tx_queue_receive(&i2c_tx_stage_q, &cur_tx, TX_NO_WAIT) == TX_SUCCESS){
@@ -56,15 +102,13 @@ void HAL_I2C_AddrCallback(I2C_HandleTypeDef *hi2c, uint8_t dir, uint16_t addr7)
 void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
     if (hi2c != &hi2c2) return;
-    if (rx_stage == RX_STAGE_HDR){
+    if (cur_rx.stage_rx == RX_STAGE_HDR) {
         /* Header */
         dcache_invalidate32_range(rx_hdr, CMD_HDR_SZ);
-        if (rx_hdr_ptr->operation == HUB_OP_READ){
-            rx_plen = 4;; // PEEK only CRC
-        }else{
-            rx_plen = rx_hdr_ptr->len + 4;; // +4 for CRC
-        }
-        rx_frame_ptr = (uint8_t*)hub_sdram_alloc_rx((ALIGN32(CMD_HDR_SZ + rx_plen)));
+        uint32_t rx_plen = (rx_hdr_ptr->operation == HUB_OP_READ) ? 4U : ((uint32_t)rx_hdr_ptr->len + 4U);
+        uint32_t rx_head_mark = hub_spsc_mark_head(&g_hub_rx_arena);
+        uint32_t frame_total  = ALIGN32(CMD_HDR_SZ + rx_plen);
+        rx_frame_ptr = (uint8_t*)hub_sdram_alloc_rx(frame_total);
         if (!rx_frame_ptr) {
             DEBUG_DUMP(IOT_LOG_ERR, "HAL_I2C_SlaveRxCpltCallback: hub_sdram_alloc_rx failed\r\n");
             hub_err_evt_t *evt = (hub_err_evt_t*)hub_sdram_alloc_tx(ALIGN32(sizeof(hub_err_evt_t)));
@@ -79,41 +123,57 @@ void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
             HAL_I2C_EnableListen_IT(hi2c);
             return;
         }
+        rx_txn_begin(rx_frame_ptr, frame_total, rx_head_mark);
         memcpy(rx_frame_ptr, rx_hdr, CMD_HDR_SZ);
+
+        cur_rx.buf      = rx_frame_ptr;
+        cur_rx.total    = CMD_HDR_SZ + rx_plen;
+        cur_rx.sent     = 0;
+        cur_rx.stage_rx = RX_STAGE_PAY;
         uint8_t *payload_dst = rx_frame_ptr + CMD_HDR_SZ;
-        // dcache_clean32_range(payload_dst, rx_plen);
-        rx_stage = RX_STAGE_PAY;
-        HAL_I2C_Slave_Seq_Receive_DMA(hi2c, payload_dst, rx_plen, I2C_LAST_FRAME);
+        
+        HAL_I2C_Slave_Seq_Receive_DMA(hi2c, payload_dst, (uint16_t)rx_plen, I2C_LAST_FRAME);
         return; 
     }
-    if (rx_stage == RX_STAGE_PAY) {
+    if (cur_rx.stage_rx == RX_STAGE_PAY) {
         /* payload+CRC */
+        uint32_t rx_plen = cur_rx.total - CMD_HDR_SZ;
         uint8_t *payload_ptr = rx_frame_ptr + CMD_HDR_SZ;
         dcache_invalidate32_range(payload_ptr, rx_plen);
         uint32_t crc_rx;
-        memcpy(&crc_rx, payload_ptr + rx_plen - 4, 4);
-        uint32_t cmd_crc_calc = iot_hub_crc32_hard(rx_frame_ptr, CMD_HDR_SZ + rx_plen - 4);
+        memcpy(&crc_rx, payload_ptr + rx_plen - 4U, 4U);
+        uint32_t cmd_crc_calc = iot_hub_crc32_hard(cur_rx.buf, cur_rx.total - 4U);
         if (cmd_crc_calc != crc_rx) {
             DEBUG_DUMP(IOT_LOG_ERR, "HUB ERROR: Crc mismatch: %08lX != %08lX\r\n", cmd_crc_calc, crc_rx);
-            hub_cmd_t *bad = (hub_cmd_t*)rx_frame_ptr;
+
+            hub_cmd_t *bad = (hub_cmd_t*)cur_rx.buf;
             hub_err_evt_t *evt = (hub_err_evt_t*)hub_sdram_alloc_tx(ALIGN32(sizeof(hub_err_evt_t)));
             if (evt) {
                 evt->tag       = HUB_ERR_TAG;
                 evt->status    = HUB_RSP_ERR_CRC;
                 evt->data_addr = bad->data_addr;
-                evt->rx_ptr    = rx_frame_ptr;
-                evt->rx_len    = ALIGN32(CMD_HDR_SZ + rx_plen);
+                evt->rx_ptr    = cur_rx.buf;
+                evt->rx_len    = ALIGN32(cur_rx.total);
                 tx_queue_send(&i2c_rx_stage_q, &evt, TX_NO_WAIT);
             }
-            DEBUG_DUMP(IOT_LOG_ERR, "evt=%p\r\n", evt);
+            rx_txn_commit();
+            cur_rx.buf      = NULL;
+            cur_rx.total    = 0;
+            cur_rx.sent     = 0;
+            cur_rx.stage_rx = RX_STAGE_HDR;
             HAL_I2C_EnableListen_IT(hi2c);
             return;
-        } else {
-            tx_queue_send(&cmd_queue, &rx_frame_ptr, TX_NO_WAIT);
-            rx_frame_ptr = NULL;
         }
-        rx_stage = RX_STAGE_HDR;
+        uint8_t *to_worker = cur_rx.buf;
+        tx_queue_send(&cmd_queue, &to_worker, TX_NO_WAIT);
+        rx_txn_commit();
+        /* reset cur_rx */
+        cur_rx.buf      = NULL;
+        cur_rx.total    = 0;
+        cur_rx.sent     = 0;
+        cur_rx.stage_rx = RX_STAGE_HDR;
         HAL_I2C_EnableListen_IT(hi2c);
+        return;
     }
 }
 
@@ -148,6 +208,8 @@ void HAL_I2C_SlaveTxCpltCallback(I2C_HandleTypeDef *hi2c)
 void HAL_I2C_ListenCpltCallback(I2C_HandleTypeDef *hi2c)
 {
     if (hi2c != &hi2c2) return;
+    rx_txn_rollback("listenOK");
+    tx_cancel_in_isr();
     HAL_I2C_EnableListen_IT(hi2c);
 }
 void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
@@ -160,14 +222,12 @@ void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
     if (hi2c->hdmatx && HAL_DMA_GetState(hi2c->hdmatx) != HAL_DMA_STATE_READY) {
         (void)HAL_DMA_Abort(hi2c->hdmatx);
     }
-    DEBUG_DUMP(IOT_LOG_ERR, "HAL_I2C_ErrorCallback: I2C Error occurred\r\n");
     uint32_t err_flags = I2C_FLAG_BERR | I2C_FLAG_ARLO | I2C_FLAG_OVR |
                          I2C_FLAG_PECERR | I2C_FLAG_TIMEOUT | I2C_FLAG_AF |
                          I2C_FLAG_STOPF;
     __HAL_I2C_CLEAR_FLAG(hi2c, err_flags);
 
     __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_ADDR);
-    DEBUG_DUMP(IOT_LOG_ERR, "HAL_I2C_ErrorCallback: Cleared ADDR flag\r\n");
     if (__HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_TXIS) != RESET)
     {
         hi2c->Instance->TXDR = 0x00U;
@@ -177,8 +237,9 @@ void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
     {
         __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_TXE);
     }
+    rx_txn_rollback("i2cER");
+    tx_cancel_in_isr();
     HAL_I2C_EnableListen_IT(hi2c);
-    DEBUG_DUMP(IOT_LOG_ERR, "HAL_I2C_ErrorCallback: Reinitialized\r\n");
 }
 
 void iot_hub_start(void)
@@ -245,7 +306,7 @@ static VOID worker_thread_entry(ULONG arg)
                 }
                 if (evt->rx_ptr && evt->rx_len) {
                     DEBUG_DUMP(IOT_LOG_DEBUG, "worker_thread_entry: Freeing rx_ptr=%p, rx_len=%ld\r\n", evt->rx_ptr, evt->rx_len);
-                    hub_sdram_free_tx(evt->rx_ptr, evt->rx_len);
+                    hub_sdram_free_rx(evt->rx_ptr, evt->rx_len);
                 }
                 DEBUG_DUMP(IOT_LOG_DEBUG, "worker_thread_entry: Freeing evt=%p\r\n", evt);
                 hub_sdram_free_tx(evt, ALIGN32(sizeof(hub_err_evt_t)));
@@ -259,9 +320,6 @@ static VOID worker_thread_entry(ULONG arg)
         if (op == HUB_OP_READ) {
             hub_sdram_free_rx(cmd, rx_total);
             rx_frame_ptr = NULL;
-        }
-        if (cmd->data_addr == 0){
-            cmd->data_addr = (uint32_t)hub_mem_base + (uint32_t)cmd->data_addr;
         }
         /* CONTROLL REPLY*/
         switch (cmd->target) {

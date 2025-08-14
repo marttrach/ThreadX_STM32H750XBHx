@@ -10,9 +10,6 @@
 #define MIN(a, b)  (( (a) < (b) ) ? (a) : (b))
 #endif
 
-// extern hub_spsc_arena_t g_hub_rx_arena;  // Producer: I2C2, Consumer: worker
-// extern hub_spsc_arena_t g_hub_tx_arena;  // Producer: worker , Consumer: I2C2
-
 /**
  * I2C Hub definitions
  * This file defines the structure and functions for the I2C hub communication.
@@ -77,10 +74,10 @@ typedef enum {
     TX_STAGE_PAY 
 } tx_stage_t;
 
-// typedef enum { 
-//     RX_STAGE_HDR, 
-//     RX_STAGE_PAY 
-// } rx_stage_t;
+typedef enum { 
+    RX_STAGE_HDR, 
+    RX_STAGE_PAY 
+} rx_stage_t;
 
 typedef struct {
     uint8_t  *buf;
@@ -89,12 +86,12 @@ typedef struct {
     tx_stage_t stage_tx;
 } hub_tx_task_t;
 
-// typedef struct {
-//     uint8_t  *buf;
-//     uint32_t  total;
-//     uint32_t  sent;
-//     rx_stage_t stage_rx;
-// } hub_rx_task_t;
+typedef struct {
+    uint8_t  *buf;
+    uint32_t  total;
+    uint32_t  sent;
+    rx_stage_t stage_rx;
+} hub_rx_task_t;
 
 /* CMD */
 typedef struct __attribute__((packed, aligned(4))) {
@@ -114,6 +111,7 @@ typedef struct __attribute__((packed, aligned(4))) {
     uint8_t payload[]; /* Variable length payload */
 } hub_rsp_t;
 
+/* Error Event */
 typedef struct __attribute__((packed, aligned(4))) {
     uint32_t        tag;       /* HUB_ERR_TAG */
     hub_rsp_status_t status;   /* HUB_RSP_ERR_* */
@@ -129,6 +127,14 @@ typedef struct __attribute__((packed)){
     uint8_t  af;              /* Alternate Function (0 = no change) */
 } hub_cfg_payload_t;
 
+/* Rx Tx Transaction Mark */
+typedef struct {
+    uint8_t  *ptr;
+    uint32_t  total;
+    uint32_t  head_mark;
+    uint8_t   active;
+} rx_txn_t;
+
 #define STAGE_WORDS_RSP  ((sizeof(hub_tx_task_t) + sizeof(ULONG) - 1) / sizeof(ULONG))
 #define CMD_HDR_SZ   (offsetof(hub_cmd_t, data_addr) + 4)   /* 8B */
 #define RSP_HDR_SZ   (offsetof(hub_rsp_t, data_addr) + 4)   /* 8B*/
@@ -136,5 +142,6 @@ typedef struct __attribute__((packed)){
 
 void iot_hub_start(void);
 uint32_t iot_hub_crc32_hard(const uint8_t *buf, size_t len);
+
 
 #endif // I2C_HUB_H

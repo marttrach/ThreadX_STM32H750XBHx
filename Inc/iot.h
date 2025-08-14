@@ -8,7 +8,7 @@
 #define IOT_LOG_WARNING   3
 #define IOT_LOG_ERR       4
 //Set debug level, 0 means no debug
-#define IOT_DEBUG_LEVEL IOT_LOG_DEBUG
+#define IOT_DEBUG_LEVEL IOT_LOG_INFO
 
 /* SDRAM */
 #define SDRAM_START_ADDRESS 0xC0000000

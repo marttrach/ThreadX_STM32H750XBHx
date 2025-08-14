@@ -329,14 +329,6 @@ uint8_t *uart8_hub_helper(uint8_t *dst_ptr, hub_cmd_t *cmd, uint16_t avail){
     uint16_t need = MIN(cmd->len, avail);
     uint16_t frame_len = (need == 0) ? RSP_HDR_SZ + 4 : RSP_HDR_SZ + need + 4;
     dst_ptr = (uint8_t *)hub_sdram_alloc_tx(ALIGN32(frame_len));
-    if (!dst_ptr) {
-        DEBUG_DUMP(IOT_LOG_ERR, "uart8_hub_helper: hub_sdram_alloc_tx failed\r\n");
-        return NULL;
-    }
-    else
-    {
-        DEBUG_DUMP(IOT_LOG_DEBUG, "uart8_hub_helper: dst_ptr=%p, frame_len=%d\r\n", dst_ptr, frame_len);
-    }
     hub_rsp_t *rsp = (hub_rsp_t *)dst_ptr;
     rsp->status   = HUB_RSP_OK;
     rsp->len      = (need == 0) ? avail : need;
@@ -351,18 +343,12 @@ uint8_t *uart8_hub_helper(uint8_t *dst_ptr, hub_cmd_t *cmd, uint16_t avail){
     uint32_t crc = iot_hub_crc32_hard(dst_ptr, frame_len - 4);
     memcpy(dst_ptr + frame_len - 4, &crc, 4);
     dcache_clean32_range(dst_ptr, frame_len);
-    // DEBUG_DUMP(IOT_LOG_DEBUG,"u8 data:");
-    // for(uint8_t i = 0 ; i < frame_len ; i++){
-    //     DEBUG_DUMP(IOT_LOG_DEBUG, "%02X ", dst_ptr[i]);
-    // }
-    // DEBUG_DUMP(IOT_LOG_DEBUG, "\r\n");
     return dst_ptr; 
 }
 
 uint8_t *uart7_hub_helper(uint8_t *dst_ptr, hub_cmd_t *cmd, uint16_t avail){
     uint16_t need = MIN(cmd->len, avail);
     uint16_t frame_len = (need == 0) ? RSP_HDR_SZ + 4 : RSP_HDR_SZ + need + 4;
-    // dst_ptr = hub_sdram_alloc(&sdram_ofs, ALIGN32(frame_len));
     dst_ptr = (uint8_t *)hub_sdram_alloc_tx(ALIGN32(frame_len));
     hub_rsp_t *rsp = (hub_rsp_t *)dst_ptr;
     rsp->status   = HUB_RSP_OK;
