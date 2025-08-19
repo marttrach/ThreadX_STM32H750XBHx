@@ -38,9 +38,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* Main thread stack size */
-#define FX_APP_THREAD_STACK_SIZE         1024
+#define FX_APP_THREAD_STACK_SIZE         8192
 /* Main thread priority */
-#define FX_APP_THREAD_PRIO               10
+#define FX_APP_THREAD_PRIO               9
 
 /* USER CODE BEGIN PD */
 
@@ -56,9 +56,9 @@
 TX_THREAD       fx_app_thread;
 
 /* Buffer for FileX FX_MEDIA sector cache. */
-ALIGN_32BYTES (uint32_t fx_sram_media_memory[FX_SRAM_SECTOR_SIZE / sizeof(uint32_t)]);
+// ALIGN_32BYTES (uint32_t fx_sram_media_memory[FX_SRAM_SECTOR_SIZE / sizeof(uint32_t)]);
 /* Define FileX global data structures.  */
-FX_MEDIA        sram_disk;
+// FX_MEDIA        sram_disk;
 
 /* Buffer for FileX FX_MEDIA sector cache. */
 ALIGN_32BYTES (uint32_t fx_sd_media_memory[FX_STM32_SD_DEFAULT_SECTOR_SIZE / sizeof(uint32_t)]);

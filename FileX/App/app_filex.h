@@ -94,7 +94,7 @@ UINT MX_FileX_Init(VOID *memory_ptr);
 
 /* fx sram number of FATs */
 #ifndef FX_SRAM_NUMBER_OF_FATS
-  #define FX_SRAM_NUMBER_OF_FATS 1
+  #define FX_SRAM_NUMBER_OF_FATS 0
 #endif
 
 /* fx sram Hidden sectors */

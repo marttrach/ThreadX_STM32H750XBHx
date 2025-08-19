@@ -10,6 +10,7 @@
 #include "adc.h"
 #include "crc.h"
 #include "i2c_hub_uart.h"
+#include "i2c_hub_filex.h"
 
 static TX_QUEUE cmd_queue;
 static TX_QUEUE rsp_queue;
@@ -36,8 +37,13 @@ static volatile hub_rx_task_t cur_rx = {
     .stage_rx = RX_STAGE_HDR,
 };
 
+static uint8_t s_busy_frame[RSP_HDR_SZ + 4] __attribute__((aligned(32)));
+static uint8_t s_worker_ack_frame[RSP_HDR_SZ + 4] __attribute__((aligned(32)));
+
 /* Transacion Init*/
 static volatile rx_txn_t g_rx_txn = {0};
+static volatile hub_rd_mode_t g_rd_mode = RD_IDLE;
+static volatile uint8_t g_tx_busy = 0;
 
 /* Start RX TX Transaction commit section */
 static inline void rx_txn_begin(uint8_t *p, uint32_t total, uint32_t mark)
@@ -72,6 +78,9 @@ static inline void rx_txn_rollback(const char *reason)
 
 static inline void tx_cancel_in_isr(void)
 {
+    if (g_tx_busy > 0){
+        g_tx_busy -= 1;
+    }
     if (cur_tx) {
         uint32_t full_len = ALIGN32(cur_tx->total);
         hub_sdram_free_tx((void*)cur_tx->buf, full_len);
@@ -79,6 +88,7 @@ static inline void tx_cancel_in_isr(void)
         cur_tx = NULL;
     }
 }
+
 /* End RX TX Transaction commit section */
 
 void HAL_I2C_AddrCallback(I2C_HandleTypeDef *hi2c, uint8_t dir, uint16_t addr7)
@@ -88,13 +98,56 @@ void HAL_I2C_AddrCallback(I2C_HandleTypeDef *hi2c, uint8_t dir, uint16_t addr7)
     {
         HAL_I2C_Slave_Seq_Receive_DMA(hi2c, rx_hdr, CMD_HDR_SZ, I2C_LAST_FRAME);
     }else if (dir == I2C_DIRECTION_RECEIVE) {
-        if (tx_queue_receive(&i2c_tx_stage_q, &cur_tx, TX_NO_WAIT) == TX_SUCCESS){
-            uint16_t first = (cur_tx->stage_tx == TX_STAGE_HDR) ? RSP_HDR_SZ + 4 : cur_tx->total ;
-            dcache_clean32_range(cur_tx->buf, first);
-            HAL_I2C_Slave_Seq_Transmit_DMA(hi2c, cur_tx->buf, first, I2C_FIRST_FRAME);
-            cur_tx->sent = first;
-        }else{
-            return;
+        switch (g_rd_mode) {
+            case RD_PEEK: {
+                if (!cur_tx) {
+                    if (tx_queue_receive(&i2c_tx_stage_q, &cur_tx, TX_NO_WAIT) != TX_SUCCESS) {
+                        dcache_clean32_range(s_busy_frame, sizeof(s_busy_frame));
+                        HAL_I2C_Slave_Seq_Transmit_DMA(hi2c, s_busy_frame, sizeof(s_busy_frame), I2C_LAST_FRAME);
+                        return;
+                    }
+                }
+                dcache_clean32_range(cur_tx->buf, cur_tx->total);
+                cur_tx->sent = cur_tx->total;
+                HAL_I2C_Slave_Seq_Transmit_DMA(hi2c, cur_tx->buf, cur_tx->total, I2C_LAST_FRAME);
+                g_rd_mode = RD_IDLE;
+                return;
+            }
+
+            case RD_DATA_WAIT: {
+                if (!cur_tx) {
+                    if (tx_queue_receive(&i2c_tx_stage_q, &cur_tx, TX_NO_WAIT) != TX_SUCCESS) {
+                        dcache_clean32_range(s_busy_frame, sizeof(s_busy_frame));
+                        HAL_I2C_Slave_Seq_Transmit_DMA(hi2c, s_busy_frame, sizeof(s_busy_frame), I2C_LAST_FRAME);
+                        return;
+                    }
+                }
+                g_tx_busy = 1;
+                dcache_clean32_range(s_worker_ack_frame, sizeof(s_worker_ack_frame));
+                HAL_I2C_Slave_Seq_Transmit_DMA(hi2c, s_worker_ack_frame, sizeof(s_worker_ack_frame), I2C_LAST_FRAME);
+                g_rd_mode = RD_DATA_READY_PAY;
+                return;
+            }
+
+            case RD_DATA_READY_PAY: {
+                if (!cur_tx) {
+                    DEBUG_DUMP(IOT_LOG_ERR, "Deadpool need to reboot....\r\n");
+                    dcache_clean32_range(s_busy_frame, sizeof(s_busy_frame));
+                    HAL_I2C_Slave_Seq_Transmit_DMA(hi2c, s_busy_frame, sizeof(s_busy_frame), I2C_LAST_FRAME);
+                    return;
+                }
+                uint16_t first = (cur_tx->stage_tx == TX_STAGE_HDR) ? RSP_HDR_SZ + 4 : cur_tx->total ;
+                dcache_clean32_range(cur_tx->buf, first);
+                HAL_I2C_Slave_Seq_Transmit_DMA(hi2c, cur_tx->buf, first, I2C_FIRST_FRAME);
+                cur_tx->sent = first;
+                return;
+            }
+
+            default: {
+                dcache_clean32_range(s_busy_frame, sizeof(s_busy_frame));
+                HAL_I2C_Slave_Seq_Transmit_DMA(hi2c, s_busy_frame, sizeof(s_busy_frame), I2C_LAST_FRAME);
+                return;
+            }
         }
     }
 }
@@ -105,6 +158,13 @@ void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
     if (cur_rx.stage_rx == RX_STAGE_HDR) {
         /* Header */
         dcache_invalidate32_range(rx_hdr, CMD_HDR_SZ);
+        if (rx_hdr_ptr->operation == HUB_OP_READ) {
+            if (rx_hdr_ptr->len == 0) {
+                g_rd_mode = RD_PEEK;
+            } else {
+                g_rd_mode = RD_DATA_WAIT;
+            }
+        }
         uint32_t rx_plen = (rx_hdr_ptr->operation == HUB_OP_READ) ? 4U : ((uint32_t)rx_hdr_ptr->len + 4U);
         uint32_t rx_head_mark = hub_spsc_mark_head(&g_hub_rx_arena);
         uint32_t frame_total  = ALIGN32(CMD_HDR_SZ + rx_plen);
@@ -180,38 +240,42 @@ void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
 void HAL_I2C_SlaveTxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
     if (hi2c != &hi2c2) return;
-    if (cur_tx && cur_tx->sent < cur_tx->total) {
+    if (!cur_tx || g_tx_busy != 1) {
+        HAL_I2C_EnableListen_IT(hi2c);
+        return;
+    }
+    if (cur_tx->sent < cur_tx->total && cur_tx->sent != 0) {
         uint16_t remain = cur_tx->total - cur_tx->sent;
         uint8_t *next   = cur_tx->buf + cur_tx->sent;
-        uint16_t chunk = (remain > I2C_SIZE_MTU) ? I2C_SIZE_MTU : (uint16_t)remain;
+        uint16_t chunk  = (remain > I2C_SIZE_MTU) ? I2C_SIZE_MTU : (uint16_t)remain;
         dcache_clean32_range(next, chunk);
         uint32_t option = (remain == chunk) ? I2C_LAST_FRAME : I2C_NEXT_FRAME;
         HAL_I2C_Slave_Seq_Transmit_DMA(hi2c, next, chunk, option);
-        cur_tx->sent += chunk; 
+        cur_tx->sent += chunk;
         return;
     }
-    if (cur_tx) {
+    if ((cur_tx->sent >= cur_tx->total || cur_tx->total == 0 ) && g_rd_mode != RD_IDLE) {
         uint32_t full_len = ALIGN32(cur_tx->total);
         hub_sdram_free_tx((void*)cur_tx->buf, full_len);
         hub_sdram_free_tx((void*)cur_tx, ALIGN32(sizeof(hub_tx_task_t)));
         cur_tx = NULL;
+        g_tx_busy = 0;
+        if (g_rd_mode == RD_DATA_READY_PAY) g_rd_mode = RD_IDLE;
     }
-    if (tx_queue_receive(&i2c_tx_stage_q, &cur_tx, TX_NO_WAIT) == TX_SUCCESS) {
-        uint16_t first = (cur_tx->stage_tx == TX_STAGE_HDR) ? RSP_HDR_SZ + 4 : cur_tx->total;
-        dcache_clean32_range(cur_tx->buf, first);
-        HAL_I2C_Slave_Seq_Transmit_DMA(hi2c, cur_tx->buf, first, I2C_FIRST_FRAME);
-        cur_tx->sent = first;
-    } else {
-        HAL_I2C_EnableListen_IT(hi2c);
-    }
+
+    HAL_I2C_EnableListen_IT(hi2c);
 }
+
 void HAL_I2C_ListenCpltCallback(I2C_HandleTypeDef *hi2c)
 {
     if (hi2c != &hi2c2) return;
     rx_txn_rollback("listenOK");
-    tx_cancel_in_isr();
+    if (g_tx_busy != 1){
+        tx_cancel_in_isr();
+    }
     HAL_I2C_EnableListen_IT(hi2c);
 }
+
 void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
 {
     if (hi2c != &hi2c2) return;
@@ -249,7 +313,25 @@ void iot_hub_start(void)
     static UCHAR rsp_queue_buf[QUEUE_LEN * sizeof(hub_rsp_t)];
     static UCHAR tx_stage_buf[I2C_STAGE_Q_LEN * sizeof(ULONG)];
     static UCHAR rx_stage_buf[I2C_STAGE_Q_LEN * sizeof(ULONG)];
-    static UCHAR worker_stack[2048];
+    static UCHAR worker_stack[16384];
+
+    hub_rsp_t *br_busy = (hub_rsp_t*)s_busy_frame;
+    br_busy->status    = HUB_RSP_BUSY;
+    br_busy->reserved  = 0;
+    br_busy->len       = 0;
+    br_busy->data_addr = 0;
+    uint32_t crc = iot_hub_crc32_hard(s_busy_frame, RSP_HDR_SZ);
+    memcpy(s_busy_frame + RSP_HDR_SZ, &crc, 4);
+    dcache_clean32_range(s_busy_frame, sizeof(s_busy_frame));
+    hub_rsp_t *br_worker_ack = (hub_rsp_t*)s_worker_ack_frame;
+    br_worker_ack->status    = HUB_RSP_WORKER_ACK;
+    br_worker_ack->reserved  = 0;
+    br_worker_ack->len       = 0;
+    br_worker_ack->data_addr = 0;
+    crc = iot_hub_crc32_hard(s_worker_ack_frame, RSP_HDR_SZ);
+    memcpy(s_worker_ack_frame + RSP_HDR_SZ, &crc, 4);
+    dcache_clean32_range(s_worker_ack_frame, sizeof(s_worker_ack_frame));
+
     tx_queue_create(&cmd_queue, "cmd_queue", TX_1_ULONG, cmd_queue_buf, sizeof(cmd_queue_buf));
     tx_queue_create(&rsp_queue, "rsp_queue", TX_1_ULONG, rsp_queue_buf, sizeof(rsp_queue_buf));
     tx_queue_create(&i2c_tx_stage_q, "i2c_tx_stage_q", STAGE_WORDS_RSP, 
@@ -265,7 +347,6 @@ void iot_hub_start(void)
     iot_uart_init();
     HAL_I2C_EnableListen_IT(&hi2c2);
     tx_thread_resume(&worker_thread);
-
 }
 
 static VOID worker_thread_entry(ULONG arg)
@@ -279,8 +360,7 @@ static VOID worker_thread_entry(ULONG arg)
                 uint32_t frame_len = RSP_HDR_SZ + 4;
                 uint8_t *tx_ptr = (uint8_t*)hub_sdram_alloc_tx(ALIGN32(frame_len));
                 if (tx_ptr) {
-                    DEBUG_DUMP(IOT_LOG_DEBUG, "worker_thread_entry: Sending error response\r\n");
-                    DEBUG_DUMP(IOT_LOG_DEBUG, "tx_ptr=%p\r\n", tx_ptr);
+                    DEBUG_DUMP(IOT_LOG_ERR, "worker_thread_entry: Sending error response\r\n");
                     hub_rsp_t *rsp = (hub_rsp_t*)tx_ptr;
                     rsp->status    = evt->status;
                     rsp->reserved  = 0;
@@ -298,17 +378,16 @@ static VOID worker_thread_entry(ULONG arg)
                         task->sent     = 0;
                         task->stage_tx = TX_STAGE_HDR;
                         tx_queue_send(&i2c_tx_stage_q, &task, TX_NO_WAIT);
-                        DEBUG_DUMP(IOT_LOG_DEBUG, "task= %p\r\n", task);
                     } 
                     else {
                         hub_sdram_free_tx(tx_ptr, ALIGN32(frame_len));
                     }
                 }
                 if (evt->rx_ptr && evt->rx_len) {
-                    DEBUG_DUMP(IOT_LOG_DEBUG, "worker_thread_entry: Freeing rx_ptr=%p, rx_len=%ld\r\n", evt->rx_ptr, evt->rx_len);
+                    DEBUG_DUMP(IOT_LOG_ERR, "worker_thread_entry: Freeing rx_ptr=%p, rx_len=%ld\r\n", evt->rx_ptr, evt->rx_len);
                     hub_sdram_free_rx(evt->rx_ptr, evt->rx_len);
                 }
-                DEBUG_DUMP(IOT_LOG_DEBUG, "worker_thread_entry: Freeing evt=%p\r\n", evt);
+                DEBUG_DUMP(IOT_LOG_ERR, "worker_thread_entry: Freeing evt=%p\r\n", evt);
                 hub_sdram_free_tx(evt, ALIGN32(sizeof(hub_err_evt_t)));
             }
         }
@@ -325,15 +404,15 @@ static VOID worker_thread_entry(ULONG arg)
         switch (cmd->target) {
             case HUB_TARGET_UART:
                 if (op == HUB_OP_WRITE && in_len > 0) {
-                    DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_UART: Transmitting %d bytes\r\n", in_len);
+                    // DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_UART: Transmitting %d bytes\r\n", in_len);
                     iot_uart8_tx_write((uint8_t *)cmd->payload, in_len);
                 } else if(op == HUB_OP_READ) {
                     uint32_t available = uart8_rx_available();
                     if (in_len == 0) { /* PEEK */
-                        DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_UART: PEEK %ld bytes from UART8\r\n", available);
+                        // DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_UART: PEEK %ld bytes from UART8\r\n", available);
                         tx_frame_ptr = uart8_hub_helper(tx_frame_ptr, cmd, available);
                     } else{
-                        DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_UART: Receiving %d bytes from UART8\r\n", in_len);
+                        // DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_UART: Receiving %d bytes from UART8\r\n", in_len);
                         tx_frame_ptr = uart8_hub_helper(tx_frame_ptr, cmd, available);
                     }
                 } else {
@@ -470,15 +549,15 @@ static VOID worker_thread_entry(ULONG arg)
                 break;
             case HUB_TARGET_WIFI:
                 if (op == HUB_OP_WRITE && in_len > 0) {
-                    DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_WIFI: Transmitting %d bytes\r\n", in_len);
+                    // DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_WIFI: Transmitting %d bytes\r\n", in_len);
                     iot_uart7_tx_write((uint8_t *)cmd->payload, in_len);
                 } else if(op == HUB_OP_READ) {
                     uint32_t available = uart7_rx_available();
                     if (in_len == 0) { /* PEEK */
-                        DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_WIFI: PEEK %ld bytes from WIFI\r\n", available);
+                        // DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_WIFI: PEEK %ld bytes from WIFI\r\n", available);
                         tx_frame_ptr = uart7_hub_helper(tx_frame_ptr, cmd, available);
                     } else{
-                        DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_WIFI: Receiving %d bytes from WIFI\r\n", in_len);
+                        // DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_WIFI: Receiving %d bytes from WIFI\r\n", in_len);
                         tx_frame_ptr = uart7_hub_helper(tx_frame_ptr, cmd, available);
                     }
                 } else {
@@ -493,10 +572,13 @@ static VOID worker_thread_entry(ULONG arg)
                 }
                 break;
             case HUB_TARGET_SD:
-                if (op == HUB_OP_READ || op == HUB_OP_WRITE) {
-                    // Implement SD read/write logic here
-                    // This is a placeholder for actual SD read/write logic
-                    tx_hdr_ptr->status = HUB_RSP_OK;
+                if (op == HUB_OP_READ) {
+                    tx_frame_ptr = i2c_hub_filex_helper(tx_frame_ptr, cmd);
+                    if (!tx_frame_ptr) {
+                        tx_hdr_ptr->status = HUB_RSP_ERR_MEMORY;
+                    } else {
+                        tx_hdr_ptr->status = HUB_RSP_OK;
+                    }
                 } else {
                     tx_hdr_ptr->status = HUB_RSP_ERR_UNKNOWN_CMD;
                 }
@@ -531,7 +613,7 @@ static VOID worker_thread_entry(ULONG arg)
             tx_frame_ptr = NULL;
             continue;
         }
-        uint32_t frame_len = RSP_HDR_SZ + (int)in_len + 4;
+        uint32_t frame_len = RSP_HDR_SZ + in_len + 4;
         dcache_clean32_range(tx_frame_ptr, frame_len);
         task->buf      = tx_frame_ptr;
         task->total    = frame_len;

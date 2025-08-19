@@ -9,6 +9,10 @@
         "i2c_hub_mem.h": "c",
         "i2c_hub.h": "c",
         "app_threadx.h": "c",
-        "type_traits": "c"
+        "type_traits": "c",
+        "fx_stm32_sd_driver.h": "c",
+        "stm32h7xx_hal.h": "c",
+        "app_filex.h": "c",
+        "i2c.h": "c"
     }
 }

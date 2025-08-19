@@ -97,6 +97,7 @@ set(MX_Application_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/i2c_hub_uart.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../startup_stm32h750xx.s
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/i2c_hub_mem.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/i2c_hub_filex.c
     # ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/bsp_iot_sdram.c
 )
 

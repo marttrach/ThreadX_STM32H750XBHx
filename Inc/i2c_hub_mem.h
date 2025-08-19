@@ -3,13 +3,22 @@
 #pragma once
 
 #include "i2c_hub.h"
+#include "iot.h"
 #include <stdint.h>
 
-#define HUB_SDRAM_BASE 0xC0000000UL
-#define HUB_SDRAM_SIZE 0x02000000UL  /* 32 MB */
+#define HUB_SDRAM_BASE SDRAM_START_ADDRESS
+#define HUB_SDRAM_SIZE HW_SDRAM_SIZE  /* 32 MB */
+
+#ifndef HUB_I2C_RX_BYTES_DEFAULT
+#define HUB_I2C_RX_BYTES_DEFAULT (4U * 1024U * 1024U)  /* 2MB */
+#endif
+#ifndef HUB_I2C_TX_BYTES_DEFAULT
+#define HUB_I2C_TX_BYTES_DEFAULT (4U * 1024U * 1024U)  /* 6MB */
+#endif
 
 #define HUB_DMA_ALIGN   32U
-#define HUB_ALIGN_UP(x) (((x) + (HUB_DMA_ALIGN-1)) & ~(HUB_DMA_ALIGN-1))
+#define HUB_ALIGN_UP(x)   (((x) + (HUB_DMA_ALIGN-1)) & ~(HUB_DMA_ALIGN-1))
+#define HUB_ALIGN_DOWN(x) ((x) & ~(HUB_DMA_ALIGN-1))
 
 #define HUB_ERR_TAG 0x4552524FUL /* 'ERRO' */
 
@@ -40,111 +49,34 @@ typedef struct {
 extern hub_spsc_arena_t g_hub_rx_arena;   /* Producer: I2C ISR, Consumer: worker */
 extern hub_spsc_arena_t g_hub_tx_arena;   /* Producer: worker , Consumer: I2C ISR */
 
-
-/* init /size (maybe rx and tx can seperate) */
-static inline void hub_spsc_init(hub_spsc_arena_t *a, uintptr_t base_addr, uint32_t bytes)
-{
-    a->base = (uint8_t *)base_addr;
-    a->size = bytes;
-    a->head = 0;
-    a->tail = 0;
-}
-
-static inline const char* __arena_name(const hub_spsc_arena_t *a) {
-    return (a == &g_hub_rx_arena) ? "RX" : (a == &g_hub_tx_arena) ? "TX" : "?";
-}
-
-static inline void *hub_spsc_alloc(hub_spsc_arena_t *a, uint32_t n, uint32_t guard)
-{
-    n = HUB_ALIGN_UP(n);
-
-    uint32_t head = a->head;
-    uint32_t tail = a->tail;
-    uint32_t size = a->size;
-    if (head >= tail) {
-        uint32_t free_end = size - head;
-        uint32_t max_end  = (free_end > guard) ? (free_end - guard) : 0;
-
-        if (n <= max_end) {
-            a->head = head + n;
-            return a->base + head;
-        }
-        /* wrap */
-        if (tail >= (n + guard)) {
-            a->head = n;
-            return a->base;
-        }
-        DEBUG_DUMP(IOT_LOG_ERR, "[%s] alloc fail (wrap fail). n=%lu, free_end=%lu, tail=%lu\r\n",
-                   __arena_name(a), (unsigned long)n, (unsigned long)free_end, (unsigned long)tail);
-        return NULL;
-
-    } else {
-        uint32_t free_between = tail - head;
-        uint32_t max_between  = (free_between > guard) ? (free_between - guard) : 0;
-
-        if (n <= max_between) {
-            a->head = head + n;
-            return a->base + head;
-        }
-        DEBUG_DUMP(IOT_LOG_ERR, "[%s] alloc fail. n=%lu, free_between=%lu, max_between=%lu\r\n",
-                   __arena_name(a), (unsigned long)n, (unsigned long)free_between, (unsigned long)max_between);
-        return NULL;
-    }
-}
-
-/* let alloc fifo */
-static inline void hub_spsc_free(hub_spsc_arena_t *a, void *p, uint32_t n)
-{
-    n = HUB_ALIGN_UP(n);
-
-#if 1
-    uint8_t *exp = a->base + a->tail;
-    if (exp >= a->base + a->size) exp -= a->size;
-    if ((uint8_t*)p != exp) {
-        DEBUG_DUMP(IOT_LOG_ERR, "[%s] FREE pointer mismatch: p=%p exp=%p, n=%lu (tail=%lu, head=%lu)\r\n",
-                   __arena_name(a), p, exp, (unsigned long)n, (unsigned long)a->tail, (unsigned long)a->head);
-        return;
-    }
+#ifdef __cplusplus
+extern "C" {
 #endif
 
-    __DMB();
-    uint32_t t = a->tail + n;
-    if (t >= a->size) t -= a->size;
-    a->tail = t;
+/* I2C SPSC helpers */
+void hub_spsc_init(hub_spsc_arena_t *a, uintptr_t base_addr, uint32_t bytes);
+void *hub_spsc_alloc(hub_spsc_arena_t *a, uint32_t n, uint32_t guard);
+void  hub_spsc_free (hub_spsc_arena_t *a, void *p, uint32_t n);
+uint32_t hub_spsc_free_space(const hub_spsc_arena_t *a);
+uint32_t hub_spsc_mark_head(const hub_spsc_arena_t *a);
+void hub_spsc_undo_alloc_to(hub_spsc_arena_t *a, uint32_t mark);
+
+static inline void *hub_sdram_alloc_rx(uint32_t n) { return hub_spsc_alloc(&g_hub_rx_arena, HUB_ALIGN_UP(n), 0U); }
+static inline void  hub_sdram_free_rx (void *p, uint32_t n){ hub_spsc_free (&g_hub_rx_arena, p, HUB_ALIGN_UP(n)); }
+static inline void *hub_sdram_alloc_tx(uint32_t n) { return hub_spsc_alloc(&g_hub_tx_arena, HUB_ALIGN_UP(n), HUB_DMA_ALIGN); }
+static inline void  hub_sdram_free_tx (void *p, uint32_t n){ hub_spsc_free (&g_hub_tx_arena, p, HUB_ALIGN_UP(n)); }
+
+void  *hub_heap_alloc(size_t n); 
+void  *hub_heap_alloc_aligned(size_t n, uint32_t align);
+void  *hub_heap_calloc(size_t cnt, size_t elemsz);
+void   hub_heap_free(void *p);
+size_t hub_heap_free_bytes(void);
+size_t hub_heap_largest_free_block(void);
+
+static inline void *hub_tmp_alloc(size_t n) { return hub_heap_alloc(n); }
+static inline void  hub_tmp_free (void *p)   { hub_heap_free(p); }
+
+#ifdef __cplusplus
 }
-
-/* debug/observe , calculate last*/
-static inline uint32_t hub_spsc_free_space(const hub_spsc_arena_t *a)
-{
-    uint32_t head = a->head, tail = a->tail, size = a->size;
-    if (head >= tail) return (size - (head - tail));
-    else              return (tail - head);
-}
-
-static inline void  hub_mem_init(void)
-{
-    /* half half*/
-    const uint32_t half = HUB_SDRAM_SIZE / 2U;
-    hub_spsc_init(&g_hub_rx_arena, HUB_SDRAM_BASE,          half);
-    hub_spsc_init(&g_hub_tx_arena, HUB_SDRAM_BASE + half,   half);
-}
-
-static inline uint32_t hub_spsc_mark_head(const hub_spsc_arena_t *a)
-{
-    return a->head;
-}
-
-/* rollback ptr */
-static inline void hub_spsc_undo_alloc_to(hub_spsc_arena_t *a, uint32_t mark)
-{
-    a->head = mark;
-    __DMB();
-}
-
-
-static inline void *hub_sdram_alloc_rx(uint32_t n) { return hub_spsc_alloc(&g_hub_rx_arena, n, 0U); }
-static inline void  hub_sdram_free_rx (void *p, uint32_t n){ hub_spsc_free(&g_hub_rx_arena, p, n); }
-static inline void *hub_sdram_alloc_tx(uint32_t n) { return hub_spsc_alloc(&g_hub_tx_arena, n, HUB_DMA_ALIGN); }
-static inline void  hub_sdram_free_tx (void *p, uint32_t n){ hub_spsc_free(&g_hub_tx_arena, p, n); }
-
+#endif
 #endif /* I2C_HUB_MEM_H */

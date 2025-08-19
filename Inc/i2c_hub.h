@@ -57,6 +57,8 @@ typedef enum __attribute__((packed)) {
     HUB_RSP_ERR_UNKNOWN_CMD,
     HUB_RSP_ERR_MEMORY,
     HUB_RSP_ERR_CRC,
+    HUB_RSP_BUSY,
+    HUB_RSP_WORKER_ACK,  
     HUB_RSP_ERR_NONE
 } hub_rsp_status_t;
 
@@ -119,6 +121,13 @@ typedef struct __attribute__((packed, aligned(4))) {
     void           *rx_ptr;
     uint32_t        rx_len;
 } hub_err_evt_t;
+
+typedef enum {
+    RD_IDLE = 0,
+    RD_PEEK,
+    RD_DATA_WAIT,
+    RD_DATA_READY_PAY
+} hub_rd_mode_t;
 
 /* PIN PACK */
 typedef struct __attribute__((packed)){
