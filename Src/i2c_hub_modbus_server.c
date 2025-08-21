@@ -206,7 +206,7 @@ int w5500_modbus_start(const w5500_modbus_cfg_t *cfg)
 
     if (!cfg) return -1;
     s_cfg = *cfg;
-    DEBUG_DUMP(IOT_LOG_INFO, "w5500_modbus_start: listen_socket=%d, upstream_socket=%d, listen_port=%d, bridge_mode=%d\r\n",
+    DEBUG_DUMP(IOT_LOG_DEBUG, "w5500_modbus_start: listen_socket=%d, upstream_socket=%d, listen_port=%d, bridge_mode=%d\r\n",
         s_cfg.listen_socket, s_cfg.upstream_socket, s_cfg.listen_port, s_cfg.bridge_mode);
     uint32_t want_stack = cfg->stack_size ? cfg->stack_size : 4096;
     uint32_t stack_sz   = HUB_ALIGN_UP(want_stack);

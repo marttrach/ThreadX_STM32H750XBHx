@@ -254,19 +254,6 @@ VOID tx_application_define(VOID *first_unused_memory)
       }
     }
   }
-  if (tx_byte_pool_create(&nx_app_byte_pool, "Nx App memory pool", nx_byte_pool_buffer, NX_APP_MEM_POOL_SIZE) != TX_SUCCESS)
-  {
-  }
-  else{
-    memory_ptr = (VOID *)&nx_app_byte_pool;
-    status = MX_NetXDuo_Init(memory_ptr);
-    if (status != NX_SUCCESS)
-    {
-      while(1)
-      {
-      }
-    }
-  }
 #endif
 /* USER CODE END DYNAMIC_MEM_ALLOC */
 }
