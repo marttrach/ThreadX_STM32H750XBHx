@@ -35,13 +35,11 @@
 MDMA_HandleTypeDef hmdma_mdma_channel0_sdmmc1_end_data_0;
 MDMA_HandleTypeDef hmdma_mdma_channel1_dma1_stream4_tc_0;
 MDMA_HandleTypeDef hmdma_mdma_channel2_dma1_stream5_tc_0;
-MDMA_HandleTypeDef hmdma_mdma_channel3_dma1_stream0_tc_0;
 MDMA_HandleTypeDef hmdma_mdma_channel4_dma1_stream1_tc_0;
 MDMA_HandleTypeDef hmdma_mdma_channel5_dma1_stream2_tc_0;
 MDMA_HandleTypeDef hmdma_mdma_channel6_dma1_stream3_tc_0;
 MDMA_HandleTypeDef hmdma_mdma_channel7_dma2_stream1_tc_0;
 MDMA_HandleTypeDef hmdma_mdma_channel8_dma2_stream4_tc_0;
-MDMA_HandleTypeDef hmdma_mdma_channel9_dma1_stream6_tc_0;
 MDMA_HandleTypeDef hmdma_mdma_channel10_dma1_stream7_tc_0;
 MDMA_HandleTypeDef hmdma_mdma_channel11_dma2_stream0_tc_0;
 MDMA_HandleTypeDef hmdma_mdma_channel12_dma2_stream2_tc_0;
@@ -55,13 +53,11 @@ MDMA_HandleTypeDef hmdma_mdma_channel15_dma2_stream5_tc_0;
   *   hmdma_mdma_channel0_sdmmc1_end_data_0
   *   hmdma_mdma_channel1_dma1_stream4_tc_0
   *   hmdma_mdma_channel2_dma1_stream5_tc_0
-  *   hmdma_mdma_channel3_dma1_stream0_tc_0
   *   hmdma_mdma_channel4_dma1_stream1_tc_0
   *   hmdma_mdma_channel5_dma1_stream2_tc_0
   *   hmdma_mdma_channel6_dma1_stream3_tc_0
   *   hmdma_mdma_channel7_dma2_stream1_tc_0
   *   hmdma_mdma_channel8_dma2_stream4_tc_0
-  *   hmdma_mdma_channel9_dma1_stream6_tc_0
   *   hmdma_mdma_channel10_dma1_stream7_tc_0
   *   hmdma_mdma_channel11_dma2_stream0_tc_0
   *   hmdma_mdma_channel12_dma2_stream2_tc_0
@@ -156,34 +152,6 @@ void MX_MDMA_Init(void)
 
   /* Configure post request address and data masks */
   if (HAL_MDMA_ConfigPostRequestMask(&hmdma_mdma_channel2_dma1_stream5_tc_0, 0, 0) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /* Configure MDMA channel MDMA_Channel3 */
-  /* Configure MDMA request hmdma_mdma_channel3_dma1_stream0_tc_0 on MDMA_Channel3 */
-  hmdma_mdma_channel3_dma1_stream0_tc_0.Instance = MDMA_Channel3;
-  hmdma_mdma_channel3_dma1_stream0_tc_0.Init.Request = MDMA_REQUEST_DMA1_Stream0_TC;
-  hmdma_mdma_channel3_dma1_stream0_tc_0.Init.TransferTriggerMode = MDMA_BLOCK_TRANSFER;
-  hmdma_mdma_channel3_dma1_stream0_tc_0.Init.Priority = MDMA_PRIORITY_LOW;
-  hmdma_mdma_channel3_dma1_stream0_tc_0.Init.Endianness = MDMA_LITTLE_ENDIANNESS_PRESERVE;
-  hmdma_mdma_channel3_dma1_stream0_tc_0.Init.SourceInc = MDMA_SRC_INC_BYTE;
-  hmdma_mdma_channel3_dma1_stream0_tc_0.Init.DestinationInc = MDMA_DEST_INC_BYTE;
-  hmdma_mdma_channel3_dma1_stream0_tc_0.Init.SourceDataSize = MDMA_SRC_DATASIZE_BYTE;
-  hmdma_mdma_channel3_dma1_stream0_tc_0.Init.DestDataSize = MDMA_DEST_DATASIZE_BYTE;
-  hmdma_mdma_channel3_dma1_stream0_tc_0.Init.DataAlignment = MDMA_DATAALIGN_PACKENABLE;
-  hmdma_mdma_channel3_dma1_stream0_tc_0.Init.BufferTransferLength = 128;
-  hmdma_mdma_channel3_dma1_stream0_tc_0.Init.SourceBurst = MDMA_SOURCE_BURST_SINGLE;
-  hmdma_mdma_channel3_dma1_stream0_tc_0.Init.DestBurst = MDMA_DEST_BURST_SINGLE;
-  hmdma_mdma_channel3_dma1_stream0_tc_0.Init.SourceBlockAddressOffset = 0;
-  hmdma_mdma_channel3_dma1_stream0_tc_0.Init.DestBlockAddressOffset = 0;
-  if (HAL_MDMA_Init(&hmdma_mdma_channel3_dma1_stream0_tc_0) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /* Configure post request address and data masks */
-  if (HAL_MDMA_ConfigPostRequestMask(&hmdma_mdma_channel3_dma1_stream0_tc_0, 0, 0) != HAL_OK)
   {
     Error_Handler();
   }
@@ -324,34 +292,6 @@ void MX_MDMA_Init(void)
 
   /* Configure post request address and data masks */
   if (HAL_MDMA_ConfigPostRequestMask(&hmdma_mdma_channel8_dma2_stream4_tc_0, 0, 0) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /* Configure MDMA channel MDMA_Channel9 */
-  /* Configure MDMA request hmdma_mdma_channel9_dma1_stream6_tc_0 on MDMA_Channel9 */
-  hmdma_mdma_channel9_dma1_stream6_tc_0.Instance = MDMA_Channel9;
-  hmdma_mdma_channel9_dma1_stream6_tc_0.Init.Request = MDMA_REQUEST_DMA1_Stream6_TC;
-  hmdma_mdma_channel9_dma1_stream6_tc_0.Init.TransferTriggerMode = MDMA_BLOCK_TRANSFER;
-  hmdma_mdma_channel9_dma1_stream6_tc_0.Init.Priority = MDMA_PRIORITY_LOW;
-  hmdma_mdma_channel9_dma1_stream6_tc_0.Init.Endianness = MDMA_LITTLE_ENDIANNESS_PRESERVE;
-  hmdma_mdma_channel9_dma1_stream6_tc_0.Init.SourceInc = MDMA_SRC_INC_BYTE;
-  hmdma_mdma_channel9_dma1_stream6_tc_0.Init.DestinationInc = MDMA_DEST_INC_BYTE;
-  hmdma_mdma_channel9_dma1_stream6_tc_0.Init.SourceDataSize = MDMA_SRC_DATASIZE_BYTE;
-  hmdma_mdma_channel9_dma1_stream6_tc_0.Init.DestDataSize = MDMA_DEST_DATASIZE_BYTE;
-  hmdma_mdma_channel9_dma1_stream6_tc_0.Init.DataAlignment = MDMA_DATAALIGN_PACKENABLE;
-  hmdma_mdma_channel9_dma1_stream6_tc_0.Init.BufferTransferLength = 128;
-  hmdma_mdma_channel9_dma1_stream6_tc_0.Init.SourceBurst = MDMA_SOURCE_BURST_SINGLE;
-  hmdma_mdma_channel9_dma1_stream6_tc_0.Init.DestBurst = MDMA_DEST_BURST_SINGLE;
-  hmdma_mdma_channel9_dma1_stream6_tc_0.Init.SourceBlockAddressOffset = 0;
-  hmdma_mdma_channel9_dma1_stream6_tc_0.Init.DestBlockAddressOffset = 0;
-  if (HAL_MDMA_Init(&hmdma_mdma_channel9_dma1_stream6_tc_0) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /* Configure post request address and data masks */
-  if (HAL_MDMA_ConfigPostRequestMask(&hmdma_mdma_channel9_dma1_stream6_tc_0, 0, 0) != HAL_OK)
   {
     Error_Handler();
   }

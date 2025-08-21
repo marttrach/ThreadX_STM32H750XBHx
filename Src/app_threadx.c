@@ -27,7 +27,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "i2c_hub.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -124,12 +124,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   */
 void tx_app_thread_entry(ULONG thread_input)
 {
-  /* USER CODE BEGIN tx_app_thread_entry */  
-  DEBUG_DUMP(IOT_LOG_INFO, "IOT-DUALMCU Booting Done.\r\n");
-  iot_hub_start();
-  while(1) { 
-    tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND);
-  }
+  /* USER CODE BEGIN tx_app_thread_entry */
 
   /* USER CODE END tx_app_thread_entry */
 }

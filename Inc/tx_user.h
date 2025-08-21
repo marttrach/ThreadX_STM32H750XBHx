@@ -111,7 +111,7 @@
 /* Override various options with default values already assigned in tx_port.h. Please also refer
    to tx_port.h for descriptions on each of these options.  */
 
-#define TX_MAX_PRIORITIES                32
+/*#define TX_MAX_PRIORITIES                32*/
 /*#define TX_TIMER_THREAD_STACK_SIZE                1024*/
 /*#define TX_TIMER_THREAD_PRIORITY                0*/
 
@@ -185,7 +185,7 @@
 
 /*Defined, the basic parameter error checking is disabled.*/
 
-/*#define TX_DISABLE_ERROR_CHECKING */
+/*#define TX_DISABLE_ERROR_CHECKING*/
 
 /* Determine if the tx_thread_resume and tx_thread_suspend services should have their internal
    code in-line. This results in a larger image, but improves the performance of the thread
@@ -243,14 +243,6 @@
    defined, ThreadX gathers various timer performance information. */
 
 /*#define TX_TIMER_ENABLE_PERFORMANCE_INFO*/
-
-/* Define the clock source for trace event entry time stamp. */
-
-/*#define TX_TRACE_TIME_SOURCE  *((ULONG *) 0xE0001004)*/
-
-/* Define the clock source for trace mask. */
-
-/*#define TX_TRACE_TIME_MASK  0xFFFFFFFFUL*/
 
 /* Define the common timer tick reference for use by other middleware components. */
 

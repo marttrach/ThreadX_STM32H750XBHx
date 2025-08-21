@@ -39,7 +39,6 @@
 #include "usb_otg.h"
 #include "gpio.h"
 #include "fmc.h"
-#include "iot.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -353,11 +352,9 @@ void PeriphCommonClock_Config(void)
   PeriphClkInitStruct.PLL2.PLL2VCOSEL = RCC_PLL2VCOWIDE;
   PeriphClkInitStruct.PLL2.PLL2FRACN = 0;
   PeriphClkInitStruct.PLL3.PLL3M = 32;
-  // PeriphClkInitStruct.PLL3.PLL3N = 120;
   PeriphClkInitStruct.PLL3.PLL3N = 128;
   PeriphClkInitStruct.PLL3.PLL3P = 16;
   PeriphClkInitStruct.PLL3.PLL3Q = 16;
-  // PeriphClkInitStruct.PLL3.PLL3Q = 10;
   PeriphClkInitStruct.PLL3.PLL3R = 8;
   PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_1;
   PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOMEDIUM;

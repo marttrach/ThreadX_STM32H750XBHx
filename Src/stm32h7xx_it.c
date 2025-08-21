@@ -71,13 +71,11 @@ extern LPTIM_HandleTypeDef hlptim1;
 extern MDMA_HandleTypeDef hmdma_mdma_channel0_sdmmc1_end_data_0;
 extern MDMA_HandleTypeDef hmdma_mdma_channel1_dma1_stream4_tc_0;
 extern MDMA_HandleTypeDef hmdma_mdma_channel2_dma1_stream5_tc_0;
-extern MDMA_HandleTypeDef hmdma_mdma_channel3_dma1_stream0_tc_0;
 extern MDMA_HandleTypeDef hmdma_mdma_channel4_dma1_stream1_tc_0;
 extern MDMA_HandleTypeDef hmdma_mdma_channel5_dma1_stream2_tc_0;
 extern MDMA_HandleTypeDef hmdma_mdma_channel6_dma1_stream3_tc_0;
 extern MDMA_HandleTypeDef hmdma_mdma_channel7_dma2_stream1_tc_0;
 extern MDMA_HandleTypeDef hmdma_mdma_channel8_dma2_stream4_tc_0;
-extern MDMA_HandleTypeDef hmdma_mdma_channel9_dma1_stream6_tc_0;
 extern MDMA_HandleTypeDef hmdma_mdma_channel10_dma1_stream7_tc_0;
 extern MDMA_HandleTypeDef hmdma_mdma_channel11_dma2_stream0_tc_0;
 extern MDMA_HandleTypeDef hmdma_mdma_channel12_dma2_stream2_tc_0;
@@ -90,8 +88,6 @@ extern SD_HandleTypeDef hsd2;
 extern DMA_HandleTypeDef hdma_spi1_rx;
 extern DMA_HandleTypeDef hdma_spi1_tx;
 extern SPI_HandleTypeDef hspi1;
-extern DMA_HandleTypeDef hdma_uart5_rx;
-extern DMA_HandleTypeDef hdma_uart5_tx;
 extern DMA_HandleTypeDef hdma_uart7_rx;
 extern DMA_HandleTypeDef hdma_uart7_tx;
 extern DMA_HandleTypeDef hdma_uart8_rx;
@@ -205,20 +201,6 @@ void DebugMon_Handler(void)
 /******************************************************************************/
 
 /**
-  * @brief This function handles DMA1 stream0 global interrupt.
-  */
-void DMA1_Stream0_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA1_Stream0_IRQn 0 */
-
-  /* USER CODE END DMA1_Stream0_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_uart5_rx);
-  /* USER CODE BEGIN DMA1_Stream0_IRQn 1 */
-
-  /* USER CODE END DMA1_Stream0_IRQn 1 */
-}
-
-/**
   * @brief This function handles DMA1 stream1 global interrupt.
   */
 void DMA1_Stream1_IRQHandler(void)
@@ -286,20 +268,6 @@ void DMA1_Stream5_IRQHandler(void)
   /* USER CODE BEGIN DMA1_Stream5_IRQn 1 */
 
   /* USER CODE END DMA1_Stream5_IRQn 1 */
-}
-
-/**
-  * @brief This function handles DMA1 stream6 global interrupt.
-  */
-void DMA1_Stream6_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA1_Stream6_IRQn 0 */
-
-  /* USER CODE END DMA1_Stream6_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_uart5_tx);
-  /* USER CODE BEGIN DMA1_Stream6_IRQn 1 */
-
-  /* USER CODE END DMA1_Stream6_IRQn 1 */
 }
 
 /**
@@ -412,6 +380,20 @@ void SPI1_IRQHandler(void)
   /* USER CODE BEGIN SPI1_IRQn 1 */
 
   /* USER CODE END SPI1_IRQn 1 */
+}
+
+/**
+  * @brief This function handles EXTI line[15:10] interrupts.
+  */
+void EXTI15_10_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI15_10_IRQn 0 */
+
+  /* USER CODE END EXTI15_10_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_11);
+  /* USER CODE BEGIN EXTI15_10_IRQn 1 */
+
+  /* USER CODE END EXTI15_10_IRQn 1 */
 }
 
 /**
@@ -719,13 +701,11 @@ void MDMA_IRQHandler(void)
   HAL_MDMA_IRQHandler(&hmdma_mdma_channel0_sdmmc1_end_data_0);
   HAL_MDMA_IRQHandler(&hmdma_mdma_channel1_dma1_stream4_tc_0);
   HAL_MDMA_IRQHandler(&hmdma_mdma_channel2_dma1_stream5_tc_0);
-  HAL_MDMA_IRQHandler(&hmdma_mdma_channel3_dma1_stream0_tc_0);
   HAL_MDMA_IRQHandler(&hmdma_mdma_channel4_dma1_stream1_tc_0);
   HAL_MDMA_IRQHandler(&hmdma_mdma_channel5_dma1_stream2_tc_0);
   HAL_MDMA_IRQHandler(&hmdma_mdma_channel6_dma1_stream3_tc_0);
   HAL_MDMA_IRQHandler(&hmdma_mdma_channel7_dma2_stream1_tc_0);
   HAL_MDMA_IRQHandler(&hmdma_mdma_channel8_dma2_stream4_tc_0);
-  HAL_MDMA_IRQHandler(&hmdma_mdma_channel9_dma1_stream6_tc_0);
   HAL_MDMA_IRQHandler(&hmdma_mdma_channel10_dma1_stream7_tc_0);
   HAL_MDMA_IRQHandler(&hmdma_mdma_channel11_dma2_stream0_tc_0);
   HAL_MDMA_IRQHandler(&hmdma_mdma_channel12_dma2_stream2_tc_0);
