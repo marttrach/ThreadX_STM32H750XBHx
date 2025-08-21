@@ -4,7 +4,7 @@ This document sketches an approach for turning the STM32H750XBHx into an I/O com
 
 ## Overview
 1. **I2C Slave Interface**
-   - Configure `I2C1` (or another instance) in slave mode.
+   - Configure `I2C2` (or another instance) in slave mode.
    - Set the own address to `0x36`.
    - Incoming frames are parsed into commands specifying which peripheral to access and what operation to perform.
 

@@ -1,6 +1,6 @@
 # ThreadX_STM32H750XBHx
 
-This repository demonstrates how to build a minimal ThreadX application for the STM32H750XBHx MCU using a Docker based build environment. The example configures UART5 (pins PB12/PB13) and prints `Hello world` once the kernel is running.
+This repository demonstrates how to build a minimal ThreadX application for the STM32H750XBHx MCU using a Docker based build environment.
 
 ## Prerequisites
 - Docker installed on the host machine
@@ -14,14 +14,14 @@ The provided `Dockerfile` sets up an Ubuntu container with the Arm GNU toolchain
    ```
 2. Run the container and build the example inside:
    ```bash
-   docker run -it threadx-h750 --name threadx-h750-docker -p 2022:22 bash
+   docker run --name threadx-h750-docker -it -p 2022:22 threadx-h750 bash
    ```
    Inside the container run `./build.sh` with a preset name to configure and
    build the project in a single step. For example:
    ```bash
-   ./build.sh Debug
+   ./build.sh Release
    ```
-   The generated ELF file will be located under `build/Debug/NEW_STM32.elf`.
+   The generated ELF file will be located under `build/Release/NEW_STM32.elf`.
 
 3. To remove generated build files run:
    ```bash
@@ -32,7 +32,7 @@ The provided `Dockerfile` sets up an Ubuntu container with the Arm GNU toolchain
 
 The project now includes a startup file and linker script so the
 application is linked for flash address `0x08000000`. Use STM32CubeProgrammer
-or a similar tool to load `build/Debug/IOT_DUAL_STM32.elf` onto the board.
+or a similar tool to load `build/Release/IOT_DUAL_STM32.elf` onto the board.
 
 ## Source Overview
 - `src/main.c` – minimal ThreadX application that initializes UART5 and prints `Hello world`.
