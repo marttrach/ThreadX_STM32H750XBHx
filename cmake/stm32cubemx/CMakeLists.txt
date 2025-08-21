@@ -52,6 +52,8 @@ set(MX_Include_Dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-threadx/ports/cortex_m7/gnu/inc/
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-threadx/utility/low_power/
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-is42s32800g/
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../ioLibrary_Driver/Ethernet/W5500/
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../ioLibrary_Driver/Ethernet/
 )
 
 # STM32CubeMX generated application sources
@@ -98,6 +100,8 @@ set(MX_Application_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../startup_stm32h750xx.s
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/i2c_hub_mem.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/i2c_hub_filex.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/i2c_hub_w55k.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/i2c_hub_modbus_server.c
     # ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/bsp_iot_sdram.c
 )
 
@@ -1597,6 +1601,12 @@ set(NetXDuo_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../stm32-mw-netxduo/addons/auto_ip/nx_auto_ip.c
 )
 
+set(w5500_library_Src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../ioLibrary_Driver/Ethernet/W5500/w5500.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../ioLibrary_Driver/Ethernet/wizchip_conf.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../ioLibrary_Driver/Ethernet/socket.c
+)
+
 # Link directories setup
 set(MX_LINK_DIRS
 
@@ -1610,6 +1620,7 @@ set(MX_LINK_LIBS
 	FileX
 	ThreadX
 	NetXDuo
+    w5500_library
 	
 )
 # Interface library for includes and symbols
@@ -1647,6 +1658,12 @@ target_link_libraries(ThreadX PUBLIC stm32cubemx)
 add_library(NetXDuo OBJECT)
 target_sources(NetXDuo PRIVATE ${NetXDuo_Src})
 target_link_libraries(NetXDuo PUBLIC stm32cubemx)
+
+# Create w5500_library static library
+add_library(w5500_library OBJECT)
+target_sources(w5500_library PRIVATE ${w5500_library_Src})
+target_link_libraries(w5500_library PUBLIC stm32cubemx)
+target_compile_definitions(w5500_library PUBLIC _WIZCHIP_=W5500)
 
 # Add STM32CubeMX generated application sources to the project
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${MX_Application_Src})

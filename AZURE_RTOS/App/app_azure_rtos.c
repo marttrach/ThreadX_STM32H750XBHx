@@ -168,6 +168,7 @@ VOID tx_application_define(VOID *first_unused_memory)
     /* USER CODE END MX_FileX_Init_Success */
   }
 
+#if 0
   if (tx_byte_pool_create(&nx_app_byte_pool, "Nx App memory pool", nx_byte_pool_buffer, NX_APP_MEM_POOL_SIZE) != TX_SUCCESS)
   {
     /* USER CODE BEGIN NX_Byte_Pool_Error */
@@ -196,7 +197,6 @@ VOID tx_application_define(VOID *first_unused_memory)
     /* USER CODE END MX_NetXDuo_Init_Success */
 
   }
-#if 0
   if (tx_byte_pool_create(&ux_device_app_byte_pool, "Ux App memory pool", ux_device_byte_pool_buffer, UX_DEVICE_APP_MEM_POOL_SIZE) != TX_SUCCESS)
   {
     /* USER CODE BEGIN UX_Device_Byte_Pool_Error */

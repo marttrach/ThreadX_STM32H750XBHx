@@ -30,3 +30,7 @@
 	path = stm32-is42s32800g
 	url = https://github.com/STMicroelectronics/stm32-is42s32800g.git
 	branch = d0ff8ead4886512d0237311e8f7a96c92ae4c0a5
+[submodule "ioLibrary_Driver"]
+	path = ioLibrary_Driver
+	url = https://github.com/Wiznet/ioLibrary_Driver.git
+	branch = 772509b7244d9f2ed41604043c3c1c573cb626e2

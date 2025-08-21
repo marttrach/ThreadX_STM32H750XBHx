@@ -455,7 +455,12 @@ static VOID worker_thread_entry(ULONG arg)
                 }
                 break;
             }
-            case HUB_TARGET_SPI:
+            case HUB_TARGET_SPI: /*w5500_modbus_server_helper*/
+                if (op == HUB_OP_WRITE) {
+                    w5500_modbus_server_helper();
+                } else {
+                }
+                break;
             case HUB_TARGET_I2C:
                 tx_hdr_ptr->status = HUB_RSP_OK;
                 break;

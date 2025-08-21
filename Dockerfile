@@ -10,7 +10,9 @@ RUN apt-get update && \
 # Prepare SSH keys so the container can use SSH immediately
 RUN ssh-keygen -A && \
     mkdir -p /root/.ssh && \
-    ssh-keygen -t rsa -f /root/.ssh/id_rsa -N "" -q
+    ssh-keygen -t rsa -f /root/.ssh/id_rsa -N "" -q && \
+    eval $(ssh-agent) && \
+    service ssh start
 
 WORKDIR /workspace
 
@@ -22,7 +24,8 @@ WORKDIR /workspace
 #     git clone --depth 1 https://github.com/STMicroelectronics/stm32-mw-netxduo.git && \
 #     git clone --depth 1 https://github.com/STMicroelectronics/stm32-mw-usbx.git && \
 #     git clone --depth 1 https://github.com/STMicroelectronics/stm32-mw-filex.git && \
-#     git clone --depth 1 https://github.com/STMicroelectronics/stm32-is42s32800g.git
+#     git clone --depth 1 https://github.com/STMicroelectronics/stm32-is42s32800g.git && \
+#     git clone --depth 1 https://github.com/Wiznet/ioLibrary_Driver.git
 
 # Copy project Directly Build and Test Can Use ./build.sh
 COPY . /workspace/project

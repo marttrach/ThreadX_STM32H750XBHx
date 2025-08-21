@@ -13,6 +13,10 @@
         "fx_stm32_sd_driver.h": "c",
         "stm32h7xx_hal.h": "c",
         "app_filex.h": "c",
-        "i2c.h": "c"
+        "i2c.h": "c",
+        "app_netxduo.h": "c",
+        "wizchip_conf.h": "c",
+        "socket.h": "c",
+        "w5500.h": "c"
     }
 }
