@@ -25,8 +25,10 @@ static w5500_modbus_cfg_t s_cfg;
 static int open_listen(uint8_t sn, uint16_t port)
 {
     int8_t ret;
-    if ((ret = socket(sn, Sn_MR_TCP, port, 0)) != sn) return -1;
+    if ((ret = socket(sn, Sn_MR_TCP, port, SF_TCP_NODELAY)) != sn) return -1;
     if ((ret = listen(sn)) != SOCK_OK) { close(sn); return -2; }
+    setRTR(2000); // 200ms
+    setRCR(5);
     return 0;
 }
 
@@ -85,7 +87,7 @@ static int wait_sendok_or_timeout(uint8_t sn, UINT timeout_ms)
     while (1) {
         uint8_t ir = getSn_IR(sn);
         if (ir & Sn_IR_SENDOK) { setSn_IR(sn, Sn_IR_SENDOK); return 0; }
-        if (ir & Sn_IR_TIMEOUT) { setSn_IR(sn, Sn_IR_TIMEOUT); return -1; }
+        if (ir & Sn_IR_TIMEOUT){ setSn_IR(sn, Sn_IR_TIMEOUT); return -1; }
         uint8_t sr = getSn_SR(sn);
         if (sr != SOCK_ESTABLISHED && sr != SOCK_CLOSE_WAIT) return -2;
         if (waited >= timeout_ms) return -3;
@@ -94,11 +96,38 @@ static int wait_sendok_or_timeout(uint8_t sn, UINT timeout_ms)
     }
 }
 
+static int tcp_send_all_relaxed(uint8_t sn, const uint8_t *buf, uint16_t len, UINT max_wait_ms)
+{
+    UINT waited = 0;
+    uint16_t sent = 0;
+
+    while (sent < len) {
+        int32_t s = send(sn, (uint8_t*)buf + sent, (uint16_t)(len - sent));
+        if (s > 0) {
+            sent += (uint16_t)s;
+            continue;
+        }
+        if (s == 0) {
+            uint8_t sr = getSn_SR(sn);
+            if (sr != SOCK_ESTABLISHED && sr != SOCK_CLOSE_WAIT) return -12;
+            uint8_t ir = getSn_IR(sn);
+            if (ir & Sn_IR_TIMEOUT) { setSn_IR(sn, Sn_IR_TIMEOUT); return -11; }
+            if (waited >= max_wait_ms) return -10;
+            tx_thread_sleep(MS_TO_TICKS(1));
+            waited += 1;
+            continue;
+        }
+        return (int)s;
+    }
+    return 0;
+}
+
 static void echo_loop(uint8_t sn_cli)
 {
     if (!g_buf_c2u || g_buf_sz == 0) return;
-
     DEBUG_DUMP(IOT_LOG_DEBUG, "echo_loop: start, sn=%d\r\n", sn_cli);
+
+    setSn_KPALVTR(sn_cli, 2);
 
     while (1) {
         uint8_t sr = getSn_SR(sn_cli);
@@ -107,26 +136,18 @@ static void echo_loop(uint8_t sn_cli)
             uint8_t ir = getSn_IR(sn_cli);
             if (ir & Sn_IR_CON) setSn_IR(sn_cli, Sn_IR_CON);
         }
-
-        if (sr == SOCK_CLOSE_WAIT) {
+        else if (sr == SOCK_CLOSE_WAIT) {
             uint16_t rsr = getSn_RX_RSR(sn_cli);
             if (rsr) {
                 if (rsr > g_buf_sz) rsr = g_buf_sz;
                 int32_t r = recv(sn_cli, g_buf_c2u, rsr);
-                if (r > 0) {
-                    while (getSn_TX_FSR(sn_cli) < (uint16_t)r) {
-                        if (getSn_SR(sn_cli) != SOCK_CLOSE_WAIT) break;
-                        tx_thread_sleep(MS_TO_TICKS(1));
-                    }
-                    (void)send(sn_cli, g_buf_c2u, (uint16_t)r);
-                    (void)wait_sendok_or_timeout(sn_cli, 1000);
-                }
+                if (r > 0) (void)tcp_send_all_relaxed(sn_cli, g_buf_c2u, (uint16_t)r, 5000);
             }
             disconnect(sn_cli);
             DEBUG_DUMP(IOT_LOG_DEBUG, "echo_loop: CLOSE_WAIT->disconnect, sn=%d\r\n", sn_cli);
             break;
         }
-        else if (sr != SOCK_ESTABLISHED) {
+        else {
             DEBUG_DUMP(IOT_LOG_DEBUG, "echo_loop: sr=0x%02X break, sn=%d\r\n", sr, sn_cli);
             break;
         }
@@ -139,20 +160,9 @@ static void echo_loop(uint8_t sn_cli)
                 if (r < 0) DEBUG_DUMP(IOT_LOG_ERR, "echo_loop: recv=%ld err, sn=%d\r\n", (long)r, sn_cli);
                 break;
             }
-
-            while (getSn_TX_FSR(sn_cli) < (uint16_t)r) {
-                if (getSn_SR(sn_cli) != SOCK_ESTABLISHED) break;
-                tx_thread_sleep(MS_TO_TICKS(1));
-            }
-
-            int32_t s = send(sn_cli, g_buf_c2u, (uint16_t)r);
-            if (s <= 0) {
-                DEBUG_DUMP(IOT_LOG_ERR, "echo_loop: send=%ld err, sn=%d\r\n", (long)s, sn_cli);
-                break;
-            }
-
-            if (wait_sendok_or_timeout(sn_cli, 1000) != 0) {
-                DEBUG_DUMP(IOT_LOG_ERR, "echo_loop: SEND timeout, sn=%d\r\n", sn_cli);
+            int rc = tcp_send_all_relaxed(sn_cli, g_buf_c2u, (uint16_t)r, 5000);
+            if (rc != 0) {
+                DEBUG_DUMP(IOT_LOG_ERR, "echo_loop: tcp_send_all_relaxed rc=%d, sn=%d\r\n", rc, sn_cli);
                 break;
             }
         } else {
@@ -188,15 +198,14 @@ void w5500_modbus_thread_entry(ULONG arg)
                 bridged = 1;
             }
         }
-
         if (bridged) {
             bridge_loop(sn_cli, sn_up);
             close_if_open(sn_up);
         } else {
             echo_loop(sn_cli);
-            DEBUG_DUMP(IOT_LOG_DEBUG, "w5500_modbus_thread_entry: Closing client socket %d\r\n", sn_cli);
+            // DEBUG_DUMP(IOT_LOG_DEBUG, "w5500_modbus_thread_entry: Closing client socket %d\r\n", sn_cli);
         }
-        DEBUG_DUMP(IOT_LOG_DEBUG, "w5500_modbus_thread_entry: Closing client socket %d\r\n", sn_cli);
+        // DEBUG_DUMP(IOT_LOG_DEBUG, "w5500_modbus_thread_entry: Closing client socket %d\r\n", sn_cli);
         close_if_open(sn_cli);
     }
 }

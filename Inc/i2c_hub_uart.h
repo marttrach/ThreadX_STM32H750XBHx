@@ -3,13 +3,13 @@
 
 #include "usart.h"
 #include "i2c_hub.h"
+#include "tx_api.h"
 
 /* 2 x ( Rx + Tx )= 20480bytes => 96-20 = 76K remain */
 #define UART_TX_BUF_SZ  (2048U)
 #define UART_RX_BUF_SZ  (2048U)  
 _Static_assert((UART_RX_BUF_SZ & (UART_RX_BUF_SZ - 1U)) == 0, "UART_RX_BUF_SZ must be power of two");
 _Static_assert((UART_TX_BUF_SZ & (UART_TX_BUF_SZ - 1U)) == 0, "UART_TX_BUF_SZ must be power of two");
-
 typedef struct {
     volatile uint32_t busy;
     volatile uint32_t write_ptr;
@@ -22,6 +22,19 @@ typedef struct {
     volatile uint32_t read_ptr;
     uint8_t  buf[UART_RX_BUF_SZ] __attribute__((aligned(32)));
 } iot_uart_rx_ring_t;
+
+typedef enum {
+    UART_CMD_CFG = 0,
+    UART_CMD_READ = 1,
+    UART_CMD_WRITE = 2
+} uart_cmd_type_t;
+
+typedef struct {
+    uart_cmd_type_t type;
+    uint16_t len;        /* READ/WRITE length；READ=0 mean PEEK */
+    uint32_t data_addr;  /* give back I2C master's data_addr；WRITE ignore */
+    /* if want use write , tx rx ptr can add  */
+} uart_cmd_msg_t;
 
 /* RX */
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size);
@@ -38,13 +51,18 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart);
 void _uart7_tx_dma_done(void);
 void _uart7_tx_dma_touch(void);
 void iot_uart7_tx_write(uint8_t *ptr, uint32_t len);
-uint8_t *uart7_hub_helper(uint8_t *dst_ptr, hub_cmd_t *cmd, uint16_t avail);
+// uint8_t *uart7_hub_helper(uint8_t *dst_ptr, hub_cmd_t *cmd, uint16_t avail);
 
 void _uart8_tx_dma_done(void);
 void _uart8_tx_dma_touch(void);
 void iot_uart8_tx_write(uint8_t *ptr, uint32_t len);
-uint8_t *uart8_hub_helper(uint8_t *dst_ptr, hub_cmd_t *cmd, uint16_t avail);
+// uint8_t *uart8_hub_helper(uint8_t *dst_ptr, hub_cmd_t *cmd, uint16_t avail);
 
 void iot_uart_init(void);
+
+void uart7_thread_start(void);
+void uart8_thread_start(void);
+int uart7_post_read(uint16_t len, uint32_t data_addr);
+int uart8_post_read(uint16_t len, uint32_t data_addr);
 
 #endif /* I2C_HUB_UART_H */

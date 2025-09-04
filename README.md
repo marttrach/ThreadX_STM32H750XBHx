@@ -44,7 +44,7 @@ STM32_Programmer_CLI -c port=SWD -d build/Release/IOT_DUAL_STM32.elf
 
 or just use stm32programmer choose elf to download
 
-Connect a serial terminal to **UART5 @115200 8N1** to observe the `Hello world` banner printed at boot.
+Connect a serial terminal to **UART5 @115200 8N1** to observe the `IOT-DUALMCU Booting Done.` banner printed at boot.
 
 ## Directory Layout
 

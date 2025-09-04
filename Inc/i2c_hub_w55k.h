@@ -8,11 +8,11 @@
 #include "iot.h"
 
 #ifndef W5500_DEF_MAC0
-#define W5500_DEF_MAC0  0x02,0x08,0xDC,0x00,0x00,0x01
+#define W5500_DEF_MAC0  0x02,0x08,0xDC,0x00,0x00,0x02
 #endif
 
 #ifndef W5500_DEF_IP
-#define W5500_DEF_IP    10,0,0,99
+#define W5500_DEF_IP    10,0,0,211
 #endif
 
 #ifndef W5500_DEF_MASK

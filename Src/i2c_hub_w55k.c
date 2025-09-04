@@ -195,8 +195,8 @@ int w5500_bringup(const w5500_net_cfg_t *ncfg)
     //     w5500_phy_force_autonego_sw();  // 7 = full functional auto negotiation
     //     w5500_phy_dump("after_force");
     // }
-    // (void)w5500_phy_try_autonego(1500);
-    // w5500_phy_dump("after_soft_phycfg, and before_force");
+    (void)w5500_phy_try_autonego(1500);
+    w5500_phy_dump("after_soft_phycfg, and before_force");
     // w5500_phy_force_autonego_sw();
     for (int i=0; i<200; ++i) {
         if (w5500_is_link_up()) break;

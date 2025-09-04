@@ -16,6 +16,9 @@
 #define HUB_I2C_TX_BYTES_DEFAULT (4U * 1024U * 1024U)  /* 6MB */
 #endif
 
+#define HUB_MEM_CMD_RESET  (0x01u)
+#define HUB_MEM_CMD_STATS  (0x02u)
+
 #define HUB_DMA_ALIGN   32U
 #define HUB_ALIGN_UP(x)   (((x) + (HUB_DMA_ALIGN-1)) & ~(HUB_DMA_ALIGN-1))
 #define HUB_ALIGN_DOWN(x) ((x) & ~(HUB_DMA_ALIGN-1))
@@ -75,7 +78,7 @@ size_t hub_heap_largest_free_block(void);
 
 static inline void *hub_tmp_alloc(size_t n) { return hub_heap_alloc(n); }
 static inline void  hub_tmp_free (void *p)   { hub_heap_free(p); }
-
+void hub_mem_init();
 #ifdef __cplusplus
 }
 #endif

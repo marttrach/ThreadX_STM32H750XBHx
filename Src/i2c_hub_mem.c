@@ -28,11 +28,15 @@ void *hub_spsc_alloc(hub_spsc_arena_t *a, uint32_t n, uint32_t guard)
         if (n <= max_end) { a->head = head + n; return a->base + head; }
         /* wrap */
         if (tail >= (n + guard)) { a->head = n; return a->base; }
+        DEBUG_DUMP(IOT_LOG_ERR, "hub_spsc_alloc(%s): head >= tail no space (req=%lu, guard=%lu, head=%lu, tail=%lu, size=%lu)\r\n",
+                   __arena_name(a), n, guard, head, tail, size);
         return NULL;
     } else {
         uint32_t free_between = tail - head;
         uint32_t max_between  = (free_between > guard) ? (free_between - guard) : 0;
         if (n <= max_between) { a->head = head + n; return a->base + head; }
+        DEBUG_DUMP(IOT_LOG_ERR, "hub_spsc_alloc(%s): no space (req=%lu, guard=%lu, head=%lu, tail=%lu, size=%lu)\r\n",
+                   __arena_name(a), n, guard, head, tail, size);
         return NULL;
     }
 }

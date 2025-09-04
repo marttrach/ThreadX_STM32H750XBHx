@@ -8,7 +8,7 @@ The following milestones outline planned enhancements for this repository:
 - [x] Storage access via FileX and SD card.
 - [ ] Update with SDCard support.
 - [ ] Low power modes (sleep, deep sleep).
-- [ ] ~~ Networking using NetX Duo.~~
+- [ ] ~~Networking using NetX Duo.~~
 - [x] Use w5500 iotlibrary
 - [ ] USB device/host examples powered by USBX.
 - [ ] ~~Automated builds and tests through a continuous‑integration pipeline.~~

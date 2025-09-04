@@ -3,12 +3,13 @@
 
 /* Debugging utilities */
 #define IOT_LOG_NONE      0
-#define IOT_LOG_DEBUG     1
-#define IOT_LOG_INFO      2
-#define IOT_LOG_WARNING   3
-#define IOT_LOG_ERR       4
+#define IOT_LOG_ALL      1
+#define IOT_LOG_DEBUG     2
+#define IOT_LOG_INFO      3
+#define IOT_LOG_WARNING   4
+#define IOT_LOG_ERR       5
 //Set debug level, 0 means no debug
-#define IOT_DEBUG_LEVEL IOT_LOG_INFO
+#define IOT_DEBUG_LEVEL IOT_LOG_DEBUG
 
 /* SDRAM */
 #define SDRAM_START_ADDRESS 0xC0000000
