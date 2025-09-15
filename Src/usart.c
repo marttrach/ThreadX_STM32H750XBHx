@@ -210,14 +210,14 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     GPIO_InitStruct.Pin = UART7_RX_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.Alternate = GPIO_AF11_UART7;
     HAL_GPIO_Init(UART7_RX_GPIO_Port, &GPIO_InitStruct);
 
     GPIO_InitStruct.Pin = UART7_TX_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.Alternate = GPIO_AF7_UART7;
     HAL_GPIO_Init(UART7_TX_GPIO_Port, &GPIO_InitStruct);
 
@@ -231,8 +231,13 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     hdma_uart7_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
     hdma_uart7_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
     hdma_uart7_rx.Init.Mode = DMA_CIRCULAR;
-    hdma_uart7_rx.Init.Priority = DMA_PRIORITY_LOW;
-    hdma_uart7_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    // hdma_uart7_rx.Init.Priority = DMA_PRIORITY_LOW;
+    hdma_uart8_rx.Init.Priority = DMA_PRIORITY_VERY_HIGH;
+    // hdma_uart7_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    hdma_uart7_rx.Init.FIFOMode      = DMA_FIFOMODE_ENABLE;
+    hdma_uart7_rx.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
+    hdma_uart7_rx.Init.MemBurst      = DMA_MBURST_INC4;
+    hdma_uart7_rx.Init.PeriphBurst   = DMA_PBURST_SINGLE;
     if (HAL_DMA_Init(&hdma_uart7_rx) != HAL_OK)
     {
       Error_Handler();
@@ -249,8 +254,13 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     hdma_uart7_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
     hdma_uart7_tx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
     hdma_uart7_tx.Init.Mode = DMA_NORMAL;
-    hdma_uart7_tx.Init.Priority = DMA_PRIORITY_LOW;
-    hdma_uart7_tx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    // hdma_uart7_tx.Init.Priority = DMA_PRIORITY_LOW;
+    hdma_uart7_tx.Init.Priority = DMA_PRIORITY_HIGH;
+    // hdma_uart7_tx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    hdma_uart7_tx.Init.FIFOMode      = DMA_FIFOMODE_ENABLE;
+    hdma_uart7_tx.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
+    hdma_uart7_tx.Init.MemBurst      = DMA_MBURST_INC4;
+    hdma_uart7_tx.Init.PeriphBurst   = DMA_PBURST_SINGLE;
     if (HAL_DMA_Init(&hdma_uart7_tx) != HAL_OK)
     {
       Error_Handler();
@@ -281,7 +291,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     GPIO_InitStruct.Pin = UART8_TX_Pin|UART8_RX_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.Alternate = GPIO_AF8_UART8;
     HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
 
@@ -295,14 +305,12 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     hdma_uart8_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
     hdma_uart8_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
     hdma_uart8_rx.Init.Mode = DMA_CIRCULAR;
-    hdma_uart8_rx.Init.Priority = DMA_PRIORITY_LOW;
-    hdma_uart8_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
-    /* save
+    hdma_uart8_rx.Init.Priority = DMA_PRIORITY_VERY_HIGH;
+    // hdma_uart8_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
     hdma_uart8_rx.Init.FIFOMode      = DMA_FIFOMODE_ENABLE;
     hdma_uart8_rx.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
     hdma_uart8_rx.Init.MemBurst      = DMA_MBURST_INC4;
     hdma_uart8_rx.Init.PeriphBurst   = DMA_PBURST_SINGLE;
-    */
     if (HAL_DMA_Init(&hdma_uart8_rx) != HAL_OK)
     {
       Error_Handler();
@@ -319,8 +327,12 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     hdma_uart8_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
     hdma_uart8_tx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
     hdma_uart8_tx.Init.Mode = DMA_NORMAL;
-    hdma_uart8_tx.Init.Priority = DMA_PRIORITY_LOW;
-    hdma_uart8_tx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    hdma_uart8_tx.Init.Priority = DMA_PRIORITY_HIGH;
+    // hdma_uart8_tx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    hdma_uart8_tx.Init.FIFOMode      = DMA_FIFOMODE_ENABLE;
+    hdma_uart8_tx.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
+    hdma_uart8_tx.Init.MemBurst      = DMA_MBURST_INC4;
+    hdma_uart8_tx.Init.PeriphBurst   = DMA_PBURST_SINGLE;
     if (HAL_DMA_Init(&hdma_uart8_tx) != HAL_OK)
     {
       Error_Handler();

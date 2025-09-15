@@ -9,11 +9,25 @@
 #define HUB_SDRAM_BASE SDRAM_START_ADDRESS
 #define HUB_SDRAM_SIZE HW_SDRAM_SIZE  /* 32 MB */
 
+#ifndef HUB_RX_GUARD
+#define HUB_RX_GUARD HUB_I2C_RX_MAX_FRAME
+#endif
+#ifndef HUB_TX_GUARD
+#define HUB_TX_GUARD HUB_I2C_TX_MAX_FRAME
+#endif
+
 #ifndef HUB_I2C_RX_BYTES_DEFAULT
-#define HUB_I2C_RX_BYTES_DEFAULT (4U * 1024U * 1024U)  /* 2MB */
+#define HUB_I2C_RX_BYTES_DEFAULT (4U * 1024U * 1024U)  /* 4MB */
 #endif
 #ifndef HUB_I2C_TX_BYTES_DEFAULT
-#define HUB_I2C_TX_BYTES_DEFAULT (4U * 1024U * 1024U)  /* 6MB */
+#define HUB_I2C_TX_BYTES_DEFAULT (4U * 1024U * 1024U)  /* 4MB */
+#endif
+
+#ifndef HUB_I2C_RX_MAX_FRAME
+#define HUB_I2C_RX_MAX_FRAME  HUB_I2C_RX_BYTES_DEFAULT/4U
+#endif
+#ifndef HUB_I2C_TX_MAX_FRAME
+#define HUB_I2C_TX_MAX_FRAME  HUB_I2C_TX_BYTES_DEFAULT/4U
 #endif
 
 #define HUB_MEM_CMD_RESET  (0x01u)
@@ -64,9 +78,9 @@ uint32_t hub_spsc_free_space(const hub_spsc_arena_t *a);
 uint32_t hub_spsc_mark_head(const hub_spsc_arena_t *a);
 void hub_spsc_undo_alloc_to(hub_spsc_arena_t *a, uint32_t mark);
 
-static inline void *hub_sdram_alloc_rx(uint32_t n) { return hub_spsc_alloc(&g_hub_rx_arena, HUB_ALIGN_UP(n), 0U); }
+static inline void *hub_sdram_alloc_rx(uint32_t n) { return hub_spsc_alloc(&g_hub_rx_arena, HUB_ALIGN_UP(n), HUB_RX_GUARD); }
 static inline void  hub_sdram_free_rx (void *p, uint32_t n){ hub_spsc_free (&g_hub_rx_arena, p, HUB_ALIGN_UP(n)); }
-static inline void *hub_sdram_alloc_tx(uint32_t n) { return hub_spsc_alloc(&g_hub_tx_arena, HUB_ALIGN_UP(n), HUB_DMA_ALIGN); }
+static inline void *hub_sdram_alloc_tx(uint32_t n) { return hub_spsc_alloc(&g_hub_tx_arena, HUB_ALIGN_UP(n), HUB_TX_GUARD); }
 static inline void  hub_sdram_free_tx (void *p, uint32_t n){ hub_spsc_free (&g_hub_tx_arena, p, HUB_ALIGN_UP(n)); }
 
 void  *hub_heap_alloc(size_t n); 

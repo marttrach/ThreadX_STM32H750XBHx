@@ -15,51 +15,97 @@ static inline const char* __arena_name(const hub_spsc_arena_t *a) {
     return (a == &g_hub_rx_arena) ? "RX" : (a == &g_hub_tx_arena) ? "TX" : "?";
 }
 
+static inline uint32_t hub_mod_u32(uint32_t off, uint32_t size)
+{
+    if (off >= size) off -= size;
+    if (off >= size) off %= size;
+    return off;
+}
+
 void *hub_spsc_alloc(hub_spsc_arena_t *a, uint32_t n, uint32_t guard)
 {
-    n = HUB_ALIGN_UP(n);
+    n     = HUB_ALIGN_UP(n);
+    guard = HUB_ALIGN_UP(guard);
+
     uint32_t head = a->head;
     uint32_t tail = a->tail;
-    uint32_t size = a->size;
+    const uint32_t size = a->size;
 
-    if (head >= tail) {
-        uint32_t free_end = size - head;
-        uint32_t max_end  = (free_end > guard) ? (free_end - guard) : 0;
-        if (n <= max_end) { a->head = head + n; return a->base + head; }
-        /* wrap */
-        if (tail >= (n + guard)) { a->head = n; return a->base; }
-        DEBUG_DUMP(IOT_LOG_ERR, "hub_spsc_alloc(%s): head >= tail no space (req=%lu, guard=%lu, head=%lu, tail=%lu, size=%lu)\r\n",
-                   __arena_name(a), n, guard, head, tail, size);
-        return NULL;
-    } else {
-        uint32_t free_between = tail - head;
-        uint32_t max_between  = (free_between > guard) ? (free_between - guard) : 0;
-        if (n <= max_between) { a->head = head + n; return a->base + head; }
-        DEBUG_DUMP(IOT_LOG_ERR, "hub_spsc_alloc(%s): no space (req=%lu, guard=%lu, head=%lu, tail=%lu, size=%lu)\r\n",
-                   __arena_name(a), n, guard, head, tail, size);
+    if (n > size) {
+        DEBUG_DUMP(IOT_LOG_ERR, "hub_spsc_alloc(%s): req too big n=%lu > size=%lu\r\n",
+                   __arena_name(a), (unsigned long)n, (unsigned long)size);
         return NULL;
     }
+
+    if (head < tail) {
+        uint32_t space = tail - head;
+        if (n + guard <= space) {
+            uint8_t *p = a->base + head;
+            a->head = head + n;
+            __DMB();
+            return p;
+        }
+        DEBUG_DUMP(IOT_LOG_ERR, "hub_spsc_alloc(%s): head<tail no space (req=%lu, guard=%lu, head=%lu, tail=%lu, size=%lu)\r\n",
+                   __arena_name(a),(unsigned long)n,(unsigned long)guard,(unsigned long)head,(unsigned long)tail,(unsigned long)size);
+        return NULL;
+    }
+
+    uint32_t end_space = size - head;
+    if (n + guard <= end_space) {
+        uint8_t *p = a->base + head;
+        head += n; if (head >= size) head -= size;
+        a->head = head;
+        __DMB();
+        return p;
+    }
+
+    if (n + guard <= tail) {
+        uint8_t *p = a->base;
+        a->head = n;
+        __DMB();
+        return p;
+    }
+
+    DEBUG_DUMP(IOT_LOG_ERR, "hub_spsc_alloc(%s): head>=tail no space (req=%lu, guard=%lu, head=%lu, tail=%lu, size=%lu)\r\n",
+               __arena_name(a),(unsigned long)n,(unsigned long)guard,(unsigned long)head,(unsigned long)tail,(unsigned long)size);
+    return NULL;
 }
 
 void hub_spsc_free(hub_spsc_arena_t *a, void *p, uint32_t n)
 {
     n = HUB_ALIGN_UP(n);
-    uint8_t *exp = a->base + a->tail;
-    if (exp >= a->base + a->size) exp -= a->size;
+
+    uint32_t tail0 = a->tail;
+    uint32_t tail  = hub_mod_u32(tail0, a->size);
+    uint8_t *exp   = a->base + tail;
+
     if ((uint8_t*)p != exp) {
+        uint32_t p_off   = (uint32_t)((uint8_t*)p - a->base);
+        uint32_t exp_off = tail;
+        uint32_t head    = hub_mod_u32(a->head, a->size);
+
+        DEBUG_DUMP(IOT_LOG_ERR,
+          "hub_spsc_free(%s): out-of-order free p=%p(off=%lu) expected=%p(off=%lu) "
+          "(head=%lu, tail=%lu(raw), size=%lu, base=%p)\r\n",
+          __arena_name(a), p, (unsigned long)p_off, exp, (unsigned long)exp_off,
+          (unsigned long)head, (unsigned long)tail0, (unsigned long)a->size, a->base);
         return;
     }
+
     __DMB();
-    uint32_t t = a->tail + n;
-    if (t >= a->size) t -= a->size;
+    uint32_t t = tail + n;
+    t = hub_mod_u32(t, a->size);
     a->tail = t;
+    __DMB();
 }
 
 uint32_t hub_spsc_free_space(const hub_spsc_arena_t *a)
 {
-    uint32_t head = a->head, tail = a->tail, size = a->size;
-    if (head >= tail) return (size - (head - tail));
-    else              return (tail - head);
+    uint32_t head = hub_mod_u32(a->head, a->size);
+    uint32_t tail = hub_mod_u32(a->tail, a->size);
+    uint32_t size = a->size;
+    if (head >= tail) return size - (head - tail);
+    else              return tail - head;
 }
 
 uint32_t hub_spsc_mark_head(const hub_spsc_arena_t *a) { return a->head; }
@@ -225,15 +271,15 @@ size_t hub_heap_largest_free_block(void)
 static uint32_t g_rx_bytes_cfg = HUB_I2C_RX_BYTES_DEFAULT;
 static uint32_t g_tx_bytes_cfg = HUB_I2C_TX_BYTES_DEFAULT;
 
-void hub_mem_config_i2c(uint32_t rx_bytes, uint32_t tx_bytes)
-{
-    g_rx_bytes_cfg = HUB_ALIGN_UP(rx_bytes);
-    g_tx_bytes_cfg = HUB_ALIGN_UP(tx_bytes);
-    if (g_rx_bytes_cfg + g_tx_bytes_cfg > HUB_SDRAM_SIZE) {
-        g_rx_bytes_cfg = HUB_I2C_RX_BYTES_DEFAULT;
-        g_tx_bytes_cfg = HUB_I2C_TX_BYTES_DEFAULT;
-    }
-}
+// void hub_mem_config_i2c(uint32_t rx_bytes, uint32_t tx_bytes)
+// {
+//     g_rx_bytes_cfg = HUB_ALIGN_UP(rx_bytes);
+//     g_tx_bytes_cfg = HUB_ALIGN_UP(tx_bytes);
+//     if (g_rx_bytes_cfg + g_tx_bytes_cfg > HUB_SDRAM_SIZE) {
+//         g_rx_bytes_cfg = HUB_I2C_RX_BYTES_DEFAULT;
+//         g_tx_bytes_cfg = HUB_I2C_TX_BYTES_DEFAULT;
+//     }
+// }
 
 void hub_mem_init(void)
 {

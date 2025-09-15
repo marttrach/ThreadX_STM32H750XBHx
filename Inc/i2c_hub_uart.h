@@ -5,6 +5,10 @@
 #include "i2c_hub.h"
 #include "tx_api.h"
 
+#ifndef IOT_UART_TX_USE_BLOCKING
+#define IOT_UART_TX_USE_BLOCKING  1
+#endif
+
 /* 2 x ( Rx + Tx )= 20480bytes => 96-20 = 76K remain */
 #define UART_TX_BUF_SZ  (2048U)
 #define UART_RX_BUF_SZ  (2048U)  
@@ -51,12 +55,12 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart);
 void _uart7_tx_dma_done(void);
 void _uart7_tx_dma_touch(void);
 void iot_uart7_tx_write(uint8_t *ptr, uint32_t len);
-// uint8_t *uart7_hub_helper(uint8_t *dst_ptr, hub_cmd_t *cmd, uint16_t avail);
+size_t iot_uart7_tx_write_blocking(const uint8_t *src, size_t len, uint32_t timeout_ms);
 
 void _uart8_tx_dma_done(void);
 void _uart8_tx_dma_touch(void);
 void iot_uart8_tx_write(uint8_t *ptr, uint32_t len);
-// uint8_t *uart8_hub_helper(uint8_t *dst_ptr, hub_cmd_t *cmd, uint16_t avail);
+size_t iot_uart8_tx_write_blocking(const uint8_t *src, size_t len, uint32_t timeout_ms);
 
 void iot_uart_init(void);
 

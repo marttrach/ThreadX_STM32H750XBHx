@@ -190,14 +190,17 @@ int w5500_bringup(const w5500_net_cfg_t *ncfg)
     // wait PHY layer 
     // uint8_t ver = getVERSIONR();  /* w5500 -> 0x04 */
     // DEBUG_DUMP(IOT_LOG_DEBUG, "W5500 VERSIONR=0x%02X\r\n", ver);
-    w5500_phy_dump("before_soft");
-    // if (!w5500_is_link_up()) {
-    //     w5500_phy_force_autonego_sw();  // 7 = full functional auto negotiation
-    //     w5500_phy_dump("after_force");
-    // }
-    (void)w5500_phy_try_autonego(1500);
-    w5500_phy_dump("after_soft_phycfg, and before_force");
-    // w5500_phy_force_autonego_sw();
+//     w5500_phy_dump("before_soft");
+//     w5500_phy_force_autonego_sw();
+//     if (w5500_phy_try_autonego(1500) != 0) {
+// #ifdef CW_SET_PHYCONF
+//         wiz_PhyConf phy = { .by=PHY_CONFBY_SW, .mode=PHY_MODE_MANUAL,
+//                             .speed=PHY_SPEED_100, .duplex=PHY_DUPLEX_FULL };
+//         ctlwizchip(CW_SET_PHYCONF, (void*)&phy);
+// #endif
+//     }
+//     w5500_phy_dump("after_soft_phycfg");
+    w5500_phy_dump("Auto Negotiate");
     for (int i=0; i<200; ++i) {
         if (w5500_is_link_up()) break;
         w5500_delay_ms(50);

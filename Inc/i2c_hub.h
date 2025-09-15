@@ -17,7 +17,7 @@
 #define HUB_I2C_ADDR 0x36
 #define QUEUE_LEN    10
 #define I2C_STAGE_Q_LEN   32U
-#define I2C_SIZE_MTU 255
+#define I2C_SIZE_MTU 16U*1024U
 
 #ifndef HUB_ERR_FILL_BYTE
 #define HUB_ERR_FILL_BYTE 0xFFu
@@ -95,7 +95,7 @@ struct hub_tx_task_t_ {
     uint32_t       sent;
     hub_tx_stage_t stage_tx;
     uint32_t       alloc_flags;
-    void         (*done_cb)(hub_tx_task_t *);  /* ★ 這裡改用 hub_tx_task_t* */
+    void         (*done_cb)(hub_tx_task_t *);
     void          *user_ctx;
 };
 
