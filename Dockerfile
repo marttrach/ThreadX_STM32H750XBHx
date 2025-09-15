@@ -28,6 +28,13 @@ WORKDIR /workspace
 #     git clone --depth 1 https://github.com/Wiznet/ioLibrary_Driver.git
 
 # Copy project Directly Build and Test Can Use ./build.sh
+
+# /* Submodule init and checkout to specific commit */
+# git submodule update --init xxx
+# git -C xxx fetch --all --tags --prune
+# git -C xxx checkout fc00ae225a6bbc4f0838a45765c64bf8c4b20bee
+# git add xxx .gitmodules
+
 COPY . /workspace/project
 RUN cd /workspace/project && \
     git submodule update --init               \

@@ -1,36 +1,27 @@
 [submodule "stm32-mw-threadx"]
 	path = stm32-mw-threadx
 	url = https://github.com/STMicroelectronics/stm32-mw-threadx.git
-	branch = 528c915f9c8353ef7744246563f7b5d9adafc96b
 [submodule "stm32h7xx_hal_driver"]
 	path = stm32h7xx_hal_driver
 	url = https://github.com/STMicroelectronics/stm32h7xx_hal_driver.git
-	branch = dbfb749f229e1aa89e50b54229ca87766e180d2d
 [submodule "cmsis_device_h7"]
 	path = cmsis_device_h7
 	url = https://github.com/STMicroelectronics/cmsis_device_h7.git
-	branch = 45b818cab6ee2806e3a27c80e330957223424392
 [submodule "STM32CubeH7"]
 	path = STM32CubeH7
 	url = https://github.com/STMicroelectronics/STM32CubeH7.git
-	branch = fc00ae225a6bbc4f0838a45765c64bf8c4b20bee
 [submodule "stm32-mw-netxduo"]
 	path = stm32-mw-netxduo
 	url = https://github.com/STMicroelectronics/stm32-mw-netxduo.git
-	branch = db332daede217a6536daf69c6ea474c223c909b0
 [submodule "stm32-mw-usbx"]
 	path = stm32-mw-usbx
 	url = https://github.com/STMicroelectronics/stm32-mw-usbx.git
-	branch = 662986196d86c06f54489210edd7f6a3492a4db7
 [submodule "stm32-mw-filex"]
 	path = stm32-mw-filex
 	url = https://github.com/STMicroelectronics/stm32-mw-filex.git
-	branch = d610a137fc87c0a8e5f2b967b924a564392dcb23
 [submodule "stm32-is42s32800g"]
 	path = stm32-is42s32800g
 	url = https://github.com/STMicroelectronics/stm32-is42s32800g.git
-	branch = d0ff8ead4886512d0237311e8f7a96c92ae4c0a5
 [submodule "ioLibrary_Driver"]
 	path = ioLibrary_Driver
 	url = https://github.com/Wiznet/ioLibrary_Driver.git
-	branch = 772509b7244d9f2ed41604043c3c1c573cb626e2
