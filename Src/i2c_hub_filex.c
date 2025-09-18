@@ -323,7 +323,6 @@ uint8_t *i2c_hub_filex_helper(uint8_t *tx_frame_ptr, const hub_cmd_t *cmd)
     const uint32_t out_len   = (uint32_t)cmd->len;
     const uint32_t frame_len = RSP_HDR_SZ + out_len + 4;
 
-    // tx_frame_ptr = (uint8_t *)hub_sdram_alloc_tx(ALIGN32(frame_len));
     tx_frame_ptr = (uint8_t *)hub_heap_alloc_aligned(ALIGN32(frame_len), HUB_DMA_ALIGN);
     if (!tx_frame_ptr) return NULL;
 
@@ -550,7 +549,7 @@ UINT fx_write_file_from_buf(FX_MEDIA *m, const char *abspath,
         total += chunk;
     }
 
-    (void)fx_file_flush(&f);
+    // (void)fx_file_flush(&f);
     (void)fx_media_flush(m);
 
     fx_file_close(&f);

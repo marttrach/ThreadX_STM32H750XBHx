@@ -34,6 +34,7 @@ extern "C" {
 #include "fx_api.h"
 #include "fx_stm32_sram_driver.h"
 #include "fx_stm32_sd_driver.h"
+#include "i2c_hub_filex.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -74,7 +75,7 @@ UINT MX_FileX_Init(VOID *memory_ptr);
 
 /* Main thread auto start */
 #ifndef FX_APP_THREAD_AUTO_START
-  #define FX_APP_THREAD_AUTO_START TX_AUTO_START
+  #define FX_APP_THREAD_AUTO_START TX_DONT_START /* TX_AUTO_START */
 #endif
 
 /* Main thread preemption threshold */

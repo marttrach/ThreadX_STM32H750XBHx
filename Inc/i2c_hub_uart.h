@@ -10,8 +10,13 @@
 #endif
 
 /* 2 x ( Rx + Tx )= 20480bytes => 96-20 = 76K remain */
+#if TEST_SMALL_SDRAM
+#define UART_TX_BUF_SZ  (512U) /* test 512B */
+#define UART_RX_BUF_SZ  (512U) /* test 512B */
+#else
 #define UART_TX_BUF_SZ  (2048U)
 #define UART_RX_BUF_SZ  (2048U)  
+#endif
 _Static_assert((UART_RX_BUF_SZ & (UART_RX_BUF_SZ - 1U)) == 0, "UART_RX_BUF_SZ must be power of two");
 _Static_assert((UART_TX_BUF_SZ & (UART_TX_BUF_SZ - 1U)) == 0, "UART_TX_BUF_SZ must be power of two");
 typedef struct {

@@ -22,7 +22,7 @@ static volatile uint16_t uart8_last_pos = 0;
 static TX_QUEUE  s_uart7_q;
 static TX_THREAD s_uart7_thread;
 static UCHAR     s_uart7_q_buf[32 * sizeof(ULONG)];
-static UCHAR     s_uart7_stack[4096];
+static UCHAR     s_uart7_stack[2048];
 static volatile UINT s_uart7_started = 0;
 static TX_SEMAPHORE s_uart7_tx_gate;
 static TX_SEMAPHORE s_uart7_tx_done;
@@ -30,7 +30,7 @@ static TX_SEMAPHORE s_uart7_tx_done;
 static TX_QUEUE  s_uart8_q;
 static TX_THREAD s_uart8_thread;
 static UCHAR     s_uart8_q_buf[32 * sizeof(ULONG)];
-static UCHAR     s_uart8_stack[4096];
+static UCHAR     s_uart8_stack[2048];
 static volatile UINT s_uart8_started = 0;
 static TX_SEMAPHORE s_uart8_tx_gate;
 static TX_SEMAPHORE s_uart8_tx_done;
@@ -41,6 +41,9 @@ static TX_SEMAPHORE s_uart8_tx_done;
 #ifndef UART_RECOVER_THRESHOLD
 #define UART_RECOVER_THRESHOLD       3U
 #endif
+#ifndef UART_TX_BOUNCE_CHUNK
+#define UART_TX_BOUNCE_CHUNK  1024U
+#endif
 #ifndef TX_DMA_TC_FLAG
 #define TX_DMA_TC_FLAG   DMA_FLAG_TCIF0_4
 #define TX_DMA_ERR_FLAGS (DMA_FLAG_TEIF0_4 | DMA_FLAG_DMEIF0_4 | DMA_FLAG_FEIF0_4)
@@ -50,6 +53,7 @@ static TX_SEMAPHORE s_uart8_tx_done;
 static volatile uint32_t s_u7_err_tick = 0, s_u8_err_tick = 0;
 static volatile uint8_t  s_u7_err_cnt  = 0, s_u8_err_cnt  = 0;
 static volatile UINT s_uart_tx_sem_inited = 0U;
+static uint8_t s_uart_bounce[UART_TX_BOUNCE_CHUNK] __attribute__((aligned(32)));  /* AXI DMA need 32B align */
 
 typedef struct {
     uint8_t     *frame;
@@ -75,6 +79,7 @@ static uart_resp_ctx_t s_u8_ctx = {0};
 static VOID uart7_thread_entry(ULONG arg);
 static VOID uart8_thread_entry(ULONG arg);
 
+/* Auto Map U7/8 START */
 static inline void _uart_port_map(UART_HandleTypeDef *huart, uint8_t **rx_dma_buf, volatile uint16_t **plast_pos, iot_uart_tx_ring_t **ptx_ring)
 {
     if (huart == &huart7) {
@@ -98,27 +103,8 @@ static inline uart_tx_sem_map_t uart_tx_map(UART_HandleTypeDef *huart)
     }
     return m;
 }
-
-static void uart_tx_sem_init_once(void)
-{
-    if (s_uart_tx_sem_inited) return;
-
-    tx_semaphore_create(&s_uart7_tx_gate, "uart7_tx_gate", 1);
-    tx_semaphore_create(&s_uart7_tx_done, "uart7_tx_done", 0);
-
-    tx_semaphore_create(&s_uart8_tx_gate, "uart8_tx_gate", 1);
-    tx_semaphore_create(&s_uart8_tx_done, "uart8_tx_done", 0);
-
-    s_uart_tx_sem_inited = 1U;
-}
-
-static void uart_tx_done_cb(hub_tx_task_t *t)
-{
-    if (!t || !t->user_ctx) return;
-    uart_resp_slot_t *slot = (uart_resp_slot_t *)t->user_ctx;
-    slot->busy = 0;
-}
-
+/* Auto Map U7/8 END */
+/* Utility Functions START*/
 static uart_resp_slot_t *uart_resp_take_free(uart_resp_ctx_t *ctx)
 {
     for (int i = 0; i < UART_RESP_SLOTS; ++i) {
@@ -146,36 +132,6 @@ static inline uint16_t dma_get_pos_stable(const DMA_HandleTypeDef *hdma)
         p2 = dma_get_pos(hdma);
     } while (p1 != p2);
     return p1;
-}
-
-void iot_uart_init(void)
-{
-    memset(&uart7_rx_ring, 0, sizeof(uart7_rx_ring));
-    memset(&uart8_rx_ring, 0, sizeof(uart8_rx_ring));
-    memset(&uart7_tx_ring, 0, sizeof(uart7_tx_ring));
-    memset(&uart8_tx_ring, 0, sizeof(uart8_tx_ring));
-    uart7_rx_dma_start();
-    uart8_rx_dma_start();
-    uart_tx_sem_init_once();
-}
-
-static int uart_resp_ctx_init(uart_resp_ctx_t *ctx)
-{
-    ctx->cap = (uint32_t)(RSP_HDR_SZ + UART_RX_BUF_SZ + 4U);
-    for (int i = 0; i < UART_RESP_SLOTS; ++i) {
-        ctx->slot[i].frame = (uint8_t*)hub_heap_alloc_aligned(ALIGN32(ctx->cap), HUB_DMA_ALIGN);
-        if (!ctx->slot[i].frame) return 0;
-        ctx->slot[i].busy  = 0;
-        ctx->slot[i].task.buf         = ctx->slot[i].frame;
-        ctx->slot[i].task.total       = 0;
-        ctx->slot[i].task.sent        = 0;
-        ctx->slot[i].task.stage_tx    = TX_STAGE_HDR;
-        ctx->slot[i].task.alloc_flags = HUB_TASK_F_STATIC_BUF | HUB_TASK_F_STATIC_TASK;
-        ctx->slot[i].task.done_cb     = uart_tx_done_cb;
-        ctx->slot[i].task.user_ctx    = &ctx->slot[i];
-    }
-    ctx->wr = 0;
-    return 1;
 }
 
 static void uart_rx_drain_dma(UART_HandleTypeDef *huart,
@@ -239,32 +195,63 @@ static void uart_rx_drain_dma(UART_HandleTypeDef *huart,
     __DMB();
 }
 
-void HAL_UART_RxHalfCpltCallback(UART_HandleTypeDef *huart)
+static void uart_ctx_done_cb(hub_tx_task_t *t)
 {
-    if (huart == &huart7) {
-        uart_rx_drain_dma(huart, UART7_RX, uart7_dma_rx_buf, &uart7_last_pos);
-    } else if (huart == &huart8) {
-        uart_rx_drain_dma(huart, UART8_RX, uart8_dma_rx_buf, &uart8_last_pos);
-    }
+    if (!t || !t->user_ctx) return;
+    uart_resp_slot_t *slot = (uart_resp_slot_t *)t->user_ctx;
+    slot->busy = 0;
 }
+/* Utility Functions END*/
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+/* Init START*/
+static void uart_tx_sem_init_once(void)
 {
-    if (huart == &huart7) {
-        uart_rx_drain_dma(huart, UART7_RX, uart7_dma_rx_buf, &uart7_last_pos);
-    } else if (huart == &huart8) {
-        uart_rx_drain_dma(huart, UART8_RX, uart8_dma_rx_buf, &uart8_last_pos);
+    if (s_uart_tx_sem_inited) return;
+
+    tx_semaphore_create(&s_uart7_tx_gate, "uart7_tx_gate", 1);
+    tx_semaphore_create(&s_uart7_tx_done, "uart7_tx_done", 0);
+
+    tx_semaphore_create(&s_uart8_tx_gate, "uart8_tx_gate", 1);
+    tx_semaphore_create(&s_uart8_tx_done, "uart8_tx_done", 0);
+
+    s_uart_tx_sem_inited = 1U;
+}
+
+static int uart_resp_ctx_init(uart_resp_ctx_t *ctx)
+{
+    ctx->cap = (uint32_t)(RSP_HDR_SZ + UART_RX_BUF_SZ + 4U);
+    for (int i = 0; i < UART_RESP_SLOTS; ++i) {
+        ctx->slot[i].frame = (uint8_t*)hub_heap_alloc_aligned(ALIGN32(ctx->cap), HUB_DMA_ALIGN);
+        if (!ctx->slot[i].frame) return 0;
+        ctx->slot[i].busy  = 0;
+        ctx->slot[i].task.buf         = ctx->slot[i].frame;
+        ctx->slot[i].task.total       = 0;
+        ctx->slot[i].task.sent        = 0;
+        ctx->slot[i].task.stage_tx    = TX_STAGE_HDR;
+        ctx->slot[i].task.alloc_flags = HUB_TASK_F_STATIC_BUF | HUB_TASK_F_STATIC_TASK;
+        ctx->slot[i].task.done_cb     = uart_ctx_done_cb;
+        ctx->slot[i].task.user_ctx    = &ctx->slot[i];
     }
+    ctx->wr = 0;
+    return 1;
 }
 
-static inline void uart7_rx_sync_from_dma(void){
-    uart_rx_drain_dma(&huart7, UART7_RX, uart7_dma_rx_buf, &uart7_last_pos);
+void iot_uart_init(void)
+{
+    memset(&uart7_rx_ring, 0, sizeof(uart7_rx_ring));
+    memset(&uart8_rx_ring, 0, sizeof(uart8_rx_ring));
+    memset(&uart7_tx_ring, 0, sizeof(uart7_tx_ring));
+    memset(&uart8_tx_ring, 0, sizeof(uart8_tx_ring));
+    uart7_rx_dma_start();
+    uart8_rx_dma_start();
+    uart_tx_sem_init_once();
 }
-static inline void uart8_rx_sync_from_dma(void){
-    uart_rx_drain_dma(&huart8, UART8_RX, uart8_dma_rx_buf, &uart8_last_pos);
-}
+/* Init END*/
 
-/* RX */
+/* RX START */
+void HAL_UART_RxHalfCpltCallback(UART_HandleTypeDef *huart){ (void)huart; }
+void HAL_UART_RxCpltCallback    (UART_HandleTypeDef *huart){ (void)huart; }
+
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size){
     if (huart == &huart7){
         uint16_t cur_pos = dma_get_pos_stable(huart->hdmarx);
@@ -365,6 +352,10 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size){
     }
 }
 
+static inline void uart7_rx_sync_from_dma(void){
+    uart_rx_drain_dma(&huart7, UART7_RX, uart7_dma_rx_buf, &uart7_last_pos);
+}
+
 void uart7_rx_dma_start(void){
     HAL_UART_Receive_DMA(&huart7, uart7_dma_rx_buf, UART_RX_BUF_SZ);
     __HAL_DMA_ENABLE_IT(huart7.hdmarx, DMA_IT_HT | DMA_IT_TC);
@@ -375,8 +366,7 @@ void uart7_rx_dma_start(void){
 uint32_t uart7_rx_available(void){
     uart7_rx_sync_from_dma();
     iot_uart_rx_ring_t *rx = UART7_RX;
-    uint32_t w = rx->write_ptr;
-    uint32_t r = rx->read_ptr;
+    uint32_t w = rx->write_ptr, r = rx->read_ptr;
     return (w >= r) ? (w - r) : (UART_RX_BUF_SZ - r + w);
 }
 
@@ -395,8 +385,11 @@ uint32_t uart7_rx_read(uint8_t *dst, uint32_t len){
     return len;
 }
 
+static inline void uart8_rx_sync_from_dma(void){
+    uart_rx_drain_dma(&huart8, UART8_RX, uart8_dma_rx_buf, &uart8_last_pos);
+}
+
 void uart8_rx_dma_start(void){
-    
     HAL_UART_Receive_DMA(&huart8, uart8_dma_rx_buf, UART_RX_BUF_SZ);
     __HAL_DMA_ENABLE_IT(huart8.hdmarx, DMA_IT_HT | DMA_IT_TC);
     ((DMA_Stream_TypeDef *)huart8.hdmarx->Instance)->CR |= DMA_SxCR_CIRC;
@@ -404,10 +397,9 @@ void uart8_rx_dma_start(void){
 }
 
 uint32_t uart8_rx_available(void){
-    uart8_rx_sync_from_dma(); 
+    uart8_rx_sync_from_dma();
     iot_uart_rx_ring_t *rx = UART8_RX;
-    uint32_t w = rx->write_ptr;
-    uint32_t r = rx->read_ptr;
+    uint32_t w = rx->write_ptr, r = rx->read_ptr;
     return (w >= r) ? (w - r) : (UART_RX_BUF_SZ - r + w);
 }
 
@@ -425,8 +417,8 @@ uint32_t uart8_rx_read(uint8_t *dst, uint32_t len){
     rx->read_ptr = (r + len) & (UART_RX_BUF_SZ - 1U);
     return len;
 }
-
-/* TX */
+/* RX END */
+/* TX START */
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
 #if IOT_UART_TX_USE_BLOCKING
@@ -448,25 +440,44 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 static inline void _uart_tx_dma_blocking(UART_HandleTypeDef *huart, const uint8_t *src, uint32_t len)
 {
     if (src == NULL || len == 0U) return;
+
     uart_tx_sem_init_once();
     uart_tx_sem_map_t m = uart_tx_map(huart);
-    if (m.huart == NULL || m.gate == NULL || m.done == NULL) {
-        return;
-    }
+    if (m.huart == NULL || m.gate == NULL || m.done == NULL) return;
 
-    if (tx_semaphore_get(m.gate, TX_WAIT_FOREVER) != TX_SUCCESS) {
-        return;
-    }
-    dcache_clean32_range(src, len);
-    HAL_StatusTypeDef st = HAL_UART_Transmit_DMA(huart, (uint8_t *)src, (uint16_t)len);
-    if (st != HAL_OK) {
-        tx_semaphore_put(m.gate);
-        return;
-    }
-    if (tx_semaphore_get(m.done, TX_WAIT_FOREVER) != TX_SUCCESS) {
-        (void)HAL_UART_AbortTransmit(huart);
-        tx_semaphore_put(m.gate);
-        return;
+    if (tx_semaphore_get(m.gate, TX_WAIT_FOREVER) != TX_SUCCESS) return;
+
+    HAL_StatusTypeDef st;
+
+    if ((((uintptr_t)src & 0xF0000000u) == 0xC0000000u)) {
+        uint32_t remain = len;
+        const uint8_t *p = src;
+        while (remain) {
+            uint32_t chunk = (remain > UART_TX_BOUNCE_CHUNK) ? UART_TX_BOUNCE_CHUNK : remain;
+            memcpy(s_uart_bounce, p, chunk);
+            dcache_clean32_range(s_uart_bounce, chunk);
+
+            st = HAL_UART_Transmit_DMA(huart, s_uart_bounce, (uint16_t)chunk);
+            if (st != HAL_OK) {
+                tx_semaphore_put(m.gate);
+                return;
+            }
+            if (tx_semaphore_get(m.done, TX_WAIT_FOREVER) != TX_SUCCESS) {
+                (void)HAL_UART_AbortTransmit(huart);
+                tx_semaphore_put(m.gate);
+                return;
+            }
+            p      += chunk;
+            remain -= chunk;
+        }
+    } else {
+        dcache_clean32_range(src, len);
+        st = HAL_UART_Transmit_DMA(huart, (uint8_t *)src, (uint16_t)len);
+        if (st != HAL_OK) {
+            tx_semaphore_put(m.gate);
+            return;
+        }
+        (void)tx_semaphore_get(m.done, TX_WAIT_FOREVER);
     }
     tx_semaphore_put(m.gate);
 }
@@ -682,8 +693,8 @@ void iot_uart8_tx_write(uint8_t *src, uint32_t len)
     _uart8_tx_dma_touch();
 #endif
 }
-
-/* Error Saver */
+/* TX END */
+/* Error Saver START*/
 static inline void _uart_clear_all_errors_and_flush(UART_HandleTypeDef *huart)
 {
     CLEAR_BIT(huart->Instance->CR3, USART_CR3_EIE);
@@ -758,7 +769,7 @@ static int _uart_restart_dma(UART_HandleTypeDef *huart, uint8_t *rx_dma_buf, vol
     return 1;
 }
 
-static void _uart_recover_tx_if_busy(UART_HandleTypeDef *huart, iot_uart_tx_ring_t *tx, uint32_t err)
+static void uart_busy_kill(UART_HandleTypeDef *huart, iot_uart_tx_ring_t *tx, uint32_t err)
 {
     if (!tx || !tx->busy) return;
     DEBUG_DUMP(IOT_LOG_DEBUG, "UART recover: TX busy → abort TX DMA (inst=%p, err=0x%08lX)\r\n",
@@ -767,7 +778,7 @@ static void _uart_recover_tx_if_busy(UART_HandleTypeDef *huart, iot_uart_tx_ring
     tx->busy = 0;
 }
 
-static void uart_port_recover(UART_HandleTypeDef *huart, const char *why)
+static void uart_err_recover(UART_HandleTypeDef *huart, const char *why)
 {
     uint32_t err = HAL_UART_GetError(huart);
     uint8_t *rx_dma_buf = NULL;
@@ -797,7 +808,7 @@ static void uart_port_recover(UART_HandleTypeDef *huart, const char *why)
     DEBUG_DUMP(IOT_LOG_DEBUG, "UART recover(%s): inst=%p err=0x%08lX cnt=%u\r\n",
                why, huart->Instance, (unsigned long)err, *pcnt);
 
-    _uart_recover_tx_if_busy(huart, tx, err);
+    uart_busy_kill(huart, tx, err);
 
     if (*pcnt >= UART_RECOVER_THRESHOLD) {
         DEBUG_DUMP(IOT_LOG_DEBUG, "UART recover: escalation (deinit/init)\r\n");
@@ -813,7 +824,6 @@ static void uart_port_recover(UART_HandleTypeDef *huart, const char *why)
     DEBUG_DUMP(IOT_LOG_DEBUG, "UART recover: done (inst=%p)\r\n", huart->Instance);
 }
 
-
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
     if (huart->hdmarx) {
@@ -824,7 +834,7 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
         uint32_t txerr = huart->hdmatx->ErrorCode;
         if (txerr) DEBUG_DUMP(IOT_LOG_ERR, "UART DMA TX err=0x%08lX\r\n", (unsigned long)txerr);
     }
-    uart_port_recover(huart, "HAL_UART_ErrorCallback");
+    uart_err_recover(huart, "HAL_UART_ErrorCallback");
     uart_tx_sem_map_t m = uart_tx_map(huart);
     if (m.done) {
         tx_semaphore_put(m.done);
@@ -838,17 +848,82 @@ void HAL_UART_AbortCpltCallback(UART_HandleTypeDef *huart)
         tx_semaphore_put(m.done);
     }
 }
-
-/* Thread */
+/* Error Saver END*/
+/* Thread START */
 void uart7_thread_start(void)
 {
     if (s_uart7_started) return;
-    if (!uart_resp_ctx_init(&s_u7_ctx)) return; /* OOM 保護 */
+    if (!uart_resp_ctx_init(&s_u7_ctx)) return;
     tx_queue_create(&s_uart7_q, "uart7_q", TX_1_ULONG, s_uart7_q_buf, sizeof(s_uart7_q_buf));
     tx_thread_create(&s_uart7_thread, "uart7_thread", uart7_thread_entry, 0,
                      s_uart7_stack, sizeof(s_uart7_stack),
                      12, 12, TX_NO_TIME_SLICE, TX_AUTO_START);
     s_uart7_started = 1;
+}
+
+int uart7_post_read(uint16_t len, uint32_t data_addr)
+{
+    if (!s_uart7_started) return 0;
+    uart_cmd_msg_t msg = { .type = UART_CMD_READ, .len = len, .data_addr = data_addr };
+    return (tx_queue_send(&s_uart7_q, &msg, TX_NO_WAIT) == TX_SUCCESS);
+}
+
+static VOID uart7_thread_entry(ULONG arg)
+{
+    (void)arg;
+    for (;;) {
+        uart_cmd_msg_t msg;
+        if (tx_queue_receive(&s_uart7_q, &msg, TX_WAIT_FOREVER) != TX_SUCCESS) continue;
+        if (msg.type == UART_CMD_READ) {
+            uart_resp_slot_t *slot = uart_resp_take_free(&s_u7_ctx);
+            if (!slot) { continue; }
+            uint8_t   *dst = slot->frame;
+            hub_rsp_t *rsp = (hub_rsp_t*)dst;
+            uint16_t req = msg.len;
+            uint16_t avail = (uint16_t)uart7_rx_available();
+            uint16_t need = (req == 0U) ? 0U : ((req <= avail) ? req : avail);
+            rsp->status    = HUB_RSP_OK;
+            rsp->reserved  = 0;
+            rsp->data_addr = msg.data_addr;
+            uint32_t frame_len = 0U;
+            uint32_t got       = 0U;
+            if (req == 0U) {
+                rsp->len   = avail;
+                frame_len  = RSP_HDR_SZ + 4U;
+            } else {
+                uint8_t *payload = dst + RSP_HDR_SZ;
+                while (got < need) {
+                    uint32_t g = uart7_rx_read(payload + got, (uint32_t)(need - got));
+                    if (g == 0U) break;
+                    got += g;
+                }
+                rsp->len  = (uint16_t)got;
+                frame_len = RSP_HDR_SZ + (uint32_t)got + 4U;
+            }
+
+            uint32_t crc = iot_hub_crc32_hard(dst, frame_len - 4U);
+            memcpy(dst + frame_len - 4U, &crc, 4U);
+
+            dcache_clean32_range(dst, frame_len);
+            __DMB();
+            if (rsp->len > 0U) {
+                dcache_clean32_range(dst + RSP_HDR_SZ, rsp->len);   
+                DEBUG_DUMP(IOT_LOG_ALL,
+                    "UART7 READ req=%u avail=%u need=%u got=%u frm=%lu len=%u\r\n",
+                    (unsigned)req, (unsigned)avail, (unsigned)need, (unsigned)got,
+                    (unsigned long)frame_len, (unsigned)rsp->len);
+            }
+            if (req != 0U && got > 0U) {
+                DEBUG_DUMP(IOT_LOG_ALL, "UART7 rsp bytes: ");
+                for (uint32_t i = 0; i < (unsigned)( rsp->len ); i++) {
+                    DEBUG_DUMP(IOT_LOG_ALL, "0x%02X ", dst[RSP_HDR_SZ + i]);
+                }
+                DEBUG_DUMP(IOT_LOG_ALL, "\r\n");
+            }
+            slot->task.total = frame_len; 
+            (void)hub_send_tx_task(&slot->task);
+        }
+    }
 }
 
 void uart8_thread_start(void)
@@ -862,66 +937,11 @@ void uart8_thread_start(void)
     s_uart8_started = 1;
 }
 
-int uart7_post_read(uint16_t len, uint32_t data_addr)
-{
-    if (!s_uart7_started) return 0;
-    uart_cmd_msg_t msg = { .type = UART_CMD_READ, .len = len, .data_addr = data_addr };
-    return (tx_queue_send(&s_uart7_q, &msg, TX_NO_WAIT) == TX_SUCCESS);
-}
-
 int uart8_post_read(uint16_t len, uint32_t data_addr)
 {
     if (!s_uart8_started) return 0;
     uart_cmd_msg_t msg = { .type = UART_CMD_READ, .len = len, .data_addr = data_addr };
     return (tx_queue_send(&s_uart8_q, &msg, TX_NO_WAIT) == TX_SUCCESS);
-}
-
-static VOID uart7_thread_entry(ULONG arg)
-{
-    (void)arg;
-    for (;;) {
-        uart_cmd_msg_t msg;
-        if (tx_queue_receive(&s_uart7_q, &msg, TX_WAIT_FOREVER) != TX_SUCCESS) continue;
-
-        if (msg.type == UART_CMD_READ) {
-            uart_resp_slot_t *slot = uart_resp_take_free(&s_u7_ctx);
-            if (!slot) {
-                continue;
-            }
-
-            uint8_t *dst = slot->frame;
-            hub_rsp_t *rsp = (hub_rsp_t*)dst;
-
-            uint16_t req   = msg.len;                 /* 0 => PEEK */
-            uart7_rx_sync_from_dma();
-            uint16_t avail = (uint16_t)uart7_rx_available();
-            uint16_t need  = (req == 0U) ? 0U : ( (req < avail) ? req : avail );
-            uint32_t frame_len = (req == 0U) ? (RSP_HDR_SZ + 4U) : (RSP_HDR_SZ + (uint32_t)req + 4U);
-
-            rsp->status    = HUB_RSP_OK;
-            rsp->reserved  = 0;
-            rsp->len       = (req == 0U) ? avail : req; 
-            rsp->data_addr = msg.data_addr;
-
-            if (req > 0U) {
-                uint8_t *payload = dst + RSP_HDR_SZ;
-                uint32_t got = 0;
-                while (got < need) {
-                    uint32_t g = uart7_rx_read(payload + got, (uint32_t)(need - got));
-                    got += g;
-                    if (g == 0U) break;
-                }
-                if (need < req) {
-                    memset(payload + need, HUB_ERR_FILL_BYTE, (size_t)(req - need));
-                }
-            }
-            uint32_t crc = iot_hub_crc32_hard(dst, frame_len - 4U);
-            memcpy(dst + frame_len - 4U, &crc, 4U);
-
-            slot->task.total = frame_len;
-            (void)hub_send_tx_task(&slot->task);
-        }
-    }
 }
 
 static VOID uart8_thread_entry(ULONG arg)
@@ -930,43 +950,55 @@ static VOID uart8_thread_entry(ULONG arg)
     for (;;) {
         uart_cmd_msg_t msg;
         if (tx_queue_receive(&s_uart8_q, &msg, TX_WAIT_FOREVER) != TX_SUCCESS) continue;
-
         if (msg.type == UART_CMD_READ) {
             uart_resp_slot_t *slot = uart_resp_take_free(&s_u8_ctx);
             if (!slot) { continue; }
 
-            uint8_t *dst = slot->frame;
+            uint8_t   *dst = slot->frame;
             hub_rsp_t *rsp = (hub_rsp_t*)dst;
-
-            uint16_t req   = msg.len;                 /* 0 => PEEK */
-            uart8_rx_sync_from_dma(); 
+            uint16_t req = msg.len;
             uint16_t avail = (uint16_t)uart8_rx_available();
-            uint16_t need  = (req == 0U) ? 0U : ( (req < avail) ? req : avail );
-            uint32_t frame_len = (req == 0U) ? (RSP_HDR_SZ + 4U) : (RSP_HDR_SZ + (uint32_t)req + 4U);
-
+            uint16_t need = (req == 0U) ? 0U : ((req <= avail) ? req : avail);
             rsp->status    = HUB_RSP_OK;
             rsp->reserved  = 0;
-            rsp->len       = (req == 0U) ? avail : req;
             rsp->data_addr = msg.data_addr;
-
-            if (req > 0U) {
+            uint32_t frame_len = 0U;
+            uint32_t got       = 0U;
+            if (req == 0U) {
+                rsp->len   = avail;
+                frame_len  = RSP_HDR_SZ + 4U;
+            } else {
                 uint8_t *payload = dst + RSP_HDR_SZ;
-                uint32_t got = 0;
                 while (got < need) {
                     uint32_t g = uart8_rx_read(payload + got, (uint32_t)(need - got));
-                    got += g;
                     if (g == 0U) break;
+                    got += g;
                 }
-                if (need < req) {
-                    memset(payload + need, HUB_ERR_FILL_BYTE, (size_t)(req - need));
-                }
+                rsp->len  = (uint16_t)got;
+                frame_len = RSP_HDR_SZ + (uint32_t)got + 4U;
             }
 
             uint32_t crc = iot_hub_crc32_hard(dst, frame_len - 4U);
             memcpy(dst + frame_len - 4U, &crc, 4U);
-
-            slot->task.total = frame_len;
+            dcache_clean32_range(dst, frame_len);
+            __DMB();
+            if (rsp->len > 0U) {
+                dcache_clean32_range(dst + RSP_HDR_SZ, rsp->len);   
+                DEBUG_DUMP(IOT_LOG_ALL,
+                    "UART8 READ req=%u avail=%u need=%u got=%u frm=%lu len=%u\r\n",
+                    (unsigned)req, (unsigned)avail, (unsigned)need, (unsigned)got,
+                    (unsigned long)frame_len, (unsigned)rsp->len);
+            }
+            if (req != 0U && got > 0U) {
+                DEBUG_DUMP(IOT_LOG_ALL, "UART8 rsp bytes: ");
+                for (uint32_t i = 0; i < (unsigned)( rsp->len ); i++) {
+                    DEBUG_DUMP(IOT_LOG_ALL, "0x%02X ", dst[RSP_HDR_SZ + i]);
+                }
+                DEBUG_DUMP(IOT_LOG_ALL, "\r\n");
+            }
+            slot->task.total = frame_len; 
             (void)hub_send_tx_task(&slot->task);
         }
     }
 }
+/* Thread END*/

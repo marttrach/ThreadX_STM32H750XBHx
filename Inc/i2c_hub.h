@@ -170,7 +170,7 @@ _Static_assert(sizeof(void*) == sizeof(ULONG), "Pointer size must equal ULONG on
 
 void iot_hub_start(void);
 uint32_t iot_hub_crc32_hard(const uint8_t *buf, size_t len);
-void iot_hub_tx_flush(void);
+void hub_send_tx_flush(void);
 int hub_send_tx_frame(uint8_t *buf, uint32_t total);
 int hub_send_tx_task(hub_tx_task_t *task);
 

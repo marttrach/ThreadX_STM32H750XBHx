@@ -119,6 +119,7 @@ static void w5500_phy_dump(const char *tag)
       opmd ? "SW":"HW", opmdc);
 }
 
+#if 0
 static int w5500_phy_try_autonego(uint32_t timeout_ms)
 {
 #ifdef CW_SET_PHYCONF
@@ -158,6 +159,7 @@ static void w5500_phy_force_autonego_sw(void)
     w5500_delay_ms(2);
     setPHYCFGR((uint8_t)(phy & ~PHYCFGR_RST));
 }
+#endif
 
 int w5500_bringup(const w5500_net_cfg_t *ncfg)
 {
@@ -187,19 +189,16 @@ int w5500_bringup(const w5500_net_cfg_t *ncfg)
         ni.sn[0], ni.sn[1], ni.sn[2], ni.sn[3],
         ni.gw[0], ni.gw[1], ni.gw[2], ni.gw[3],
         ni.dns[0], ni.dns[1], ni.dns[2], ni.dns[3]);
-    // wait PHY layer 
-    // uint8_t ver = getVERSIONR();  /* w5500 -> 0x04 */
-    // DEBUG_DUMP(IOT_LOG_DEBUG, "W5500 VERSIONR=0x%02X\r\n", ver);
-//     w5500_phy_dump("before_soft");
-//     w5500_phy_force_autonego_sw();
-//     if (w5500_phy_try_autonego(1500) != 0) {
-// #ifdef CW_SET_PHYCONF
-//         wiz_PhyConf phy = { .by=PHY_CONFBY_SW, .mode=PHY_MODE_MANUAL,
-//                             .speed=PHY_SPEED_100, .duplex=PHY_DUPLEX_FULL };
-//         ctlwizchip(CW_SET_PHYCONF, (void*)&phy);
-// #endif
-//     }
-//     w5500_phy_dump("after_soft_phycfg");
+#if 0
+    uint8_t ver = getVERSIONR();  /* w5500 -> 0x04 */
+    DEBUG_DUMP(IOT_LOG_DEBUG, "W5500 VERSIONR=0x%02X\r\n", ver);
+    w5500_phy_dump("before Try Negotiate");
+    if (w5500_phy_try_autonego(1500) != 0) {
+        wiz_PhyConf phy = { .by=PHY_CONFBY_SW, .mode=PHY_MODE_MANUAL,
+                            .speed=PHY_SPEED_100, .duplex=PHY_DUPLEX_FULL };
+        ctlwizchip(CW_SET_PHYCONF, (void*)&phy);
+    }
+#endif
     w5500_phy_dump("Auto Negotiate");
     for (int i=0; i<200; ++i) {
         if (w5500_is_link_up()) break;

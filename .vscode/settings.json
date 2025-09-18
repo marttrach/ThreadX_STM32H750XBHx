@@ -17,6 +17,10 @@
         "app_netxduo.h": "c",
         "wizchip_conf.h": "c",
         "socket.h": "c",
-        "w5500.h": "c"
+        "w5500.h": "c",
+        "i2c_hub_filex.h": "c",
+        "iot.h": "c",
+        "app_azure_rtos_config.h": "c",
+        "i2c_hub_modbus_server.h": "c"
     }
 }

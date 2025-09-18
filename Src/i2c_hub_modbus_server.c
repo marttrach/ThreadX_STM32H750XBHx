@@ -7,10 +7,6 @@
 #include "i2c_hub.h"
 #include "spi.h"
 
-#ifndef TX_AFFINITY_ENABLE
-#define TX_AFFINITY_ENABLE 0
-#endif
-
 #ifndef MODBUS_BUF_SZ
 #define MODBUS_BUF_SZ 1460   /* one MSS */
 #endif
@@ -81,21 +77,6 @@ static void bridge_loop(uint8_t sn_cli, uint8_t sn_up)
     }
 }
 
-// static int wait_sendok_or_timeout(uint8_t sn, UINT timeout_ms)
-// {
-//     UINT waited = 0;
-//     while (1) {
-//         uint8_t ir = getSn_IR(sn);
-//         if (ir & Sn_IR_SENDOK) { setSn_IR(sn, Sn_IR_SENDOK); return 0; }
-//         if (ir & Sn_IR_TIMEOUT){ setSn_IR(sn, Sn_IR_TIMEOUT); return -1; }
-//         uint8_t sr = getSn_SR(sn);
-//         if (sr != SOCK_ESTABLISHED && sr != SOCK_CLOSE_WAIT) return -2;
-//         if (waited >= timeout_ms) return -3;
-//         tx_thread_sleep(MS_TO_TICKS(1));
-//         waited += 1;
-//     }
-// }
-
 static int tcp_send_all_relaxed(uint8_t sn, const uint8_t *buf, uint16_t len, UINT max_wait_ms)
 {
     UINT waited = 0;
@@ -125,7 +106,7 @@ static int tcp_send_all_relaxed(uint8_t sn, const uint8_t *buf, uint16_t len, UI
 static void echo_loop(uint8_t sn_cli)
 {
     if (!g_buf_c2u || g_buf_sz == 0) return;
-    DEBUG_DUMP(IOT_LOG_DEBUG, "echo_loop: start, sn=%d\r\n", sn_cli);
+    DEBUG_DUMP(IOT_LOG_ALL, "echo_loop: start, sn=%d\r\n", sn_cli);
 
     setSn_KPALVTR(sn_cli, 2);
 
@@ -203,9 +184,9 @@ void w5500_modbus_thread_entry(ULONG arg)
             close_if_open(sn_up);
         } else {
             echo_loop(sn_cli);
-            // DEBUG_DUMP(IOT_LOG_DEBUG, "w5500_modbus_thread_entry: Closing client socket %d\r\n", sn_cli);
+            DEBUG_DUMP(IOT_LOG_ALL, "w5500_modbus_thread_entry: Closing client socket %d\r\n", sn_cli);
         }
-        // DEBUG_DUMP(IOT_LOG_DEBUG, "w5500_modbus_thread_entry: Closing client socket %d\r\n", sn_cli);
+        DEBUG_DUMP(IOT_LOG_ALL, "w5500_modbus_thread_entry: Closing client socket %d\r\n", sn_cli);
         close_if_open(sn_cli);
     }
 }
@@ -279,7 +260,7 @@ void w5500_modbus_server_helper(){
     }
     DEBUG_DUMP(IOT_LOG_DEBUG, "w5500_modbus success\r\n");
 
-    // w5500_spi_set_prescaler(SPI_BAUDRATEPRESCALER_8);
+    w5500_spi_set_prescaler(SPI_BAUDRATEPRESCALER_8);
 
     w5500_modbus_cfg_t mcfg = {
         .listen_socket   = 0,

@@ -8,6 +8,8 @@
 extern "C" {
 #endif
 
+extern TX_THREAD fx_app_thread;
+
 typedef struct {
     char   *buf;
     size_t  cap;

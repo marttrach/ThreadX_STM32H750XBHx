@@ -11,6 +11,9 @@
 //Set debug level, 0 means no debug
 #define IOT_DEBUG_LEVEL IOT_LOG_INFO
 
+/* TEST SDRAM SMALL QUICK MODE */
+#define TEST_SMALL_SDRAM      0
+
 /* SDRAM */
 #define SDRAM_START_ADDRESS 0xC0000000
 #define HW_SDRAM_SIZE       (32 * 1024 * 1024)
