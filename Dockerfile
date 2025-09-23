@@ -35,6 +35,12 @@ WORKDIR /workspace
 # git -C xxx checkout fc00ae225a6bbc4f0838a45765c64bf8c4b20bee
 # git add xxx .gitmodules
 
+# /* Manual build and run container */
+# docker run -d --name threadx-h750 \
+#   -v /home/matt_wsl/IOT_Loader_Firmware/docker_workspace:/workspace/project/build \
+#   --restart unless-stopped \
+#   threadx-h750 sleep infinity
+
 COPY . /workspace/project
 RUN cd /workspace/project && \
     git submodule update --init               \
