@@ -187,20 +187,20 @@ int main(void)
   MX_UART5_Init();
   MX_FMC_Init();
   MX_DMA_Init();
-  MX_MDMA_Init();
+  // MX_MDMA_Init();
   MX_ADC1_Init();
   MX_CRC_Init();
-  MX_DAC1_Init();
-  MX_FDCAN1_Init();
-  // MX_HASH_Init();
-  MX_I2C1_Init();
   MX_I2C2_Init();
+  // MX_DAC1_Init();
+  // MX_FDCAN1_Init();
+  // MX_HASH_Init();
+  // MX_I2C1_Init();
   // MX_IWDG1_Init(); //Maybe there's no need to auto restart.
-  MX_LPTIM1_Init();
+  // MX_LPTIM1_Init();
   // MX_RNG_Init();
-  MX_RTC_Init();
+  // MX_RTC_Init();
+  // MX_SDMMC2_SD_Init();
   MX_SDMMC1_SD_Init();
-  MX_SDMMC2_SD_Init();
   MX_SPI1_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
@@ -209,7 +209,7 @@ int main(void)
   MX_UART7_Init();
   MX_UART8_Init();
   // MX_USB_OTG_FS_PCD_Init();
-  MX_CRYP_Init();
+  // MX_CRYP_Init();
   /* USER CODE BEGIN 2 */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_SET); //WIFI NormalMode Pull High
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_5, GPIO_PIN_RESET); //WIFI EN-Pin Pull Low

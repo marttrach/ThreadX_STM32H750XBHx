@@ -211,88 +211,6 @@ static void print_indent(wr_t *w, int depth)
     for (int i = 0; i < depth; ++i) wr_puts(w, "  ");
 }
 
-static UINT list_tree(FX_MEDIA *m, const char *path, int depth, int max_depth,
-                      unsigned long *cnt_dirs, unsigned long *cnt_files, wr_t *w)
-{
-    if (max_depth >= 0 && depth > max_depth) return FX_SUCCESS;
-
-    UINT  st;
-    CHAR  name[256];
-    UINT  attr;
-    ULONG fsize;
-    UINT  y, mo, d, h, mi, s;
-
-    (void)ensure_local_path(m);
-
-    st = set_cwd(m, path);
-    if (st != FX_SUCCESS) {
-        print_indent(w, depth);
-        wr_printf(w, "[ERR] cd %s (0x%X)\r\n", path, st);
-        return st;
-    }
-
-    #define MAX_ENUM_GUARD 65535UL
-    #define MAX_SUBDIRS    64
-    typedef struct { char name[256]; UINT attr; } subdir_t;
-
-    subdir_t *subdirs = (subdir_t *)hub_tmp_alloc(HUB_ALIGN_UP(MAX_SUBDIRS * sizeof(subdir_t)));
-    if (!subdirs) {
-        return FX_SUCCESS;
-    }
-
-    // subdir_t subdirs[MAX_SUBDIRS];
-    unsigned nd = 0;
-    unsigned long guard = MAX_ENUM_GUARD;   
-
-    st = fx_directory_first_full_entry_find(m, name, &attr, &fsize, &y, &mo, &d, &h, &mi, &s);
-    while (st == FX_SUCCESS && guard--) {
-
-        if (!is_dot_or_dotdot(name)) {
-            int is_dir = (attr & FX_DIRECTORY) ? 1 : 0;
-            print_indent(w, depth);
-            if (is_dir) {
-                wr_printf(w, "- [%s]\r\n", name);
-                (*cnt_dirs)++;
-
-                if (!should_skip_descend(name, attr) && nd < MAX_SUBDIRS) {
-                    size_t n = strnlen(name, sizeof(subdirs[nd].name)-1);
-                    memcpy(subdirs[nd].name, name, n);
-                    subdirs[nd].name[n] = '\0';
-                    subdirs[nd].attr = attr;
-                    nd++;
-                }
-            } else {
-                char sz[32]; u64_to_str10(sz, sizeof(sz), (uint64_t)fsize);
-                wr_printf(w, "- %s (%s B)\r\n", name, sz);
-                (*cnt_files)++;
-            }
-        }
-
-        st = fx_directory_next_full_entry_find(m, name, &attr, &fsize, &y, &mo, &d, &h, &mi, &s);
-    }
-
-    if (st != FX_NO_MORE_ENTRIES && st != FX_SUCCESS) {
-        print_indent(w, depth);
-        wr_printf(w, "[ERR] list %s (0x%X)\r\n", path, st);
-        return st;
-    }
-
-    for (unsigned i = 0; i < nd; ++i) {
-        char sub[512];
-        if (path[0] == '\0' || (path[0]=='/' && path[1]=='\0'))
-            (void)snprintf(sub, sizeof(sub), "/%s", subdirs[i].name);
-        else
-            (void)snprintf(sub, sizeof(sub), "%s/%s", path, subdirs[i].name);
-
-        (void)list_tree(m, sub, depth + 1, max_depth, cnt_dirs, cnt_files, w);
-        hub_tmp_free(subdirs);
-        (void)set_cwd(m, path);
-    }
-
-    return FX_SUCCESS;
-}
-
-
 void i2c_hub_filex_init(void)
 {
     if (!g_fx_inited) {
@@ -358,12 +276,6 @@ uint8_t *i2c_hub_filex_helper(uint8_t *tx_frame_ptr, const hub_cmd_t *cmd)
     wr_printf(&w, "Total  : %s\r\n", tbuf);
     wr_printf(&w, "Used   : %s\r\n", ubuf);
     wr_printf(&w, "Free   : %s\r\n\r\n", fbuf);
-    wr_puts(&w, "/ (root)\r\n");
-    wr_puts(&w, "Listing files and directories:\r\n");
-    unsigned long cnt_dirs = 0, cnt_files = 0;
-    (void)list_tree(&sdio_disk, "/", 0, -1, &cnt_dirs, &cnt_files, &w);
-    DEBUG_DUMP(IOT_LOG_DEBUG, "list_tree: found %lu dirs, %lu files\r\n", cnt_dirs, cnt_files);
-    wr_printf(&w, "\r\n[Summary] Dirs=%lu, Files=%lu", cnt_dirs, cnt_files);
 out:
     if (w.used < out_len) memset(payload + w.used, 0, out_len - w.used);
     uint32_t crc = iot_hub_crc32_hard(tx_frame_ptr, RSP_HDR_SZ + out_len);
@@ -549,7 +461,6 @@ UINT fx_write_file_from_buf(FX_MEDIA *m, const char *abspath,
         total += chunk;
     }
 
-    // (void)fx_file_flush(&f);
     (void)fx_media_flush(m);
 
     fx_file_close(&f);

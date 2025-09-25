@@ -10,7 +10,7 @@ The following milestones outline planned enhancements for this repository:
 - [ ] Low power modes (sleep, deep sleep).
 - [ ] ~~Networking using NetX Duo.~~
 - [x] Use w5500 iotlibrary
-- [ ] USB device/host examples powered by USBX.
+- [ ] ~~USB device/host examples powered by USBX.~~
 - [ ] ~~Automated builds and tests through a continuous‑integration pipeline.~~
 - [ ] Security enhancements (e.g., secure boot, encrypted storage).
 - [ ] Board compatibility pared with Main STM32 Board.

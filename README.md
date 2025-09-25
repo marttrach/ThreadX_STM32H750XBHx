@@ -39,7 +39,7 @@ The provided `Dockerfile` creates an Ubuntu image containing the Arm GNU toolcha
 The firmware is linked for flash address `0x08000000`. Flash the ELF onto the board using STM32CubeProgrammer or a similar SWD utility:
 
 ```bash
-STM32_Programmer_CLI -c port=SWD -d build/Release/IOT_DUAL_STM32.elf 
+STM32_Programmer_CLI -c port=SWD -f build/Release/IOT_DUAL_STM32.elf 
 ```
 
 or just use stm32programmer choose elf to download
@@ -57,10 +57,11 @@ Connect a serial terminal to **UART5 @115200 8N1** to observe the `IOT-DUALMCU B
 
 ## Roadmap
 
+- SDCard Update Firmware
 - Stabilize the I2C‑based communication hub example.
 - Add storage support through FileX and SD card.
 - ~~Integrate networking via NetX Duo and Wi‑Fi/Ethernet adapters.~~
-- Provide USB device/host examples using USBX.
+- ~~Provide USB device/host examples using USBX.~~
 - ~~Automate builds and tests in CI.~~
 
 ## Further Reading

@@ -1,7 +1,7 @@
+#if 0
 #include <errno.h>
 #include <stdint.h>
 #include <stddef.h>
-#if 0
 extern uint8_t _tx_heap_start;
 extern uint8_t _tx_heap_end;
 

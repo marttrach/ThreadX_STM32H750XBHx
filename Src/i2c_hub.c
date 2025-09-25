@@ -1,8 +1,11 @@
 #include "i2c_hub.h"
-#include "iot_util.h"
 #include "iot.h"
+#if IOT_HUB_GPIO
+#include "iot_util.h"
+#endif
 #include <string.h>
-#include <stddef.h> 
+#include <stddef.h>
+#include <stdint.h>
 #include "usart.h"
 #include "i2c.h"
 #include "tx_api.h"
@@ -35,10 +38,24 @@ static volatile hub_rx_task_t cur_rx = {
     .stage_rx = RX_STAGE_HDR,
 };
 
+static uint8_t s_rsp_ok[RSP_HDR_SZ + 4] __attribute__((aligned(32))); /* return unknown target frame */
+static uint8_t s_unknown_target[RSP_HDR_SZ + 4] __attribute__((aligned(32))); /* return unknown target frame */
+static uint8_t s_unknown_cmd[RSP_HDR_SZ + 4] __attribute__((aligned(32))); /* return unknown cmd frame */
+static uint8_t s_err_mem[RSP_HDR_SZ + 4] __attribute__((aligned(32))); /* return error mem */
+static uint8_t s_err_crc[RSP_HDR_SZ + 4] __attribute__((aligned(32))); /* return error crc32 frame */
 static uint8_t s_busy_frame[RSP_HDR_SZ + 4] __attribute__((aligned(32))); /* return busy frame */
 static uint8_t s_worker_ack_frame[RSP_HDR_SZ + 4] __attribute__((aligned(32))); /* return worker ack frame */
-static uint8_t s_failed_mem[RSP_HDR_SZ + 4] __attribute__((aligned(32))); /* return failed mem */
-// static uint8_t s_failed_frame[RSP_HDR_SZ + 4] __attribute__((aligned(32))); /* return failed frame */
+static uint8_t s_err_none[RSP_HDR_SZ + 4] __attribute__((aligned(32))); /* return error none frame */
+
+static inline int hub_tx_buf_is_from_arena(const void *buf, uint32_t len)
+{
+    if (!g_hub_tx_arena.base || !g_hub_tx_arena.size) return 0;
+    uintptr_t start = (uintptr_t)buf;
+    uintptr_t end   = start + len;
+    uintptr_t arena_start = (uintptr_t)g_hub_tx_arena.base;
+    uintptr_t arena_end   = arena_start + g_hub_tx_arena.size;
+    return (start >= arena_start) && (end <= arena_end);
+}
 
 /* Transacion Init */
 static volatile rx_txn_t g_rx_txn = {0};
@@ -186,8 +203,8 @@ void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
         uint8_t *rx_frame_ptr = (uint8_t*)hub_sdram_alloc_rx(frame_total);
         if (rx_frame_ptr == NULL) {
             DEBUG_DUMP(IOT_LOG_ERR, "I2C2 RX: hub_sdram_alloc_rx failed (need=%lu)\r\n", (unsigned long)frame_total);
-            dcache_clean32_range(s_failed_mem, sizeof(s_failed_mem));
-            HAL_I2C_Slave_Seq_Transmit_DMA(hi2c, s_failed_mem, sizeof(s_failed_mem), I2C_LAST_FRAME);
+            dcache_clean32_range(s_err_mem, sizeof(s_err_mem));
+            HAL_I2C_Slave_Seq_Transmit_DMA(hi2c, s_err_mem, sizeof(s_err_mem), I2C_LAST_FRAME);
             HAL_I2C_EnableListen_IT(hi2c);
             return;
         }
@@ -219,6 +236,8 @@ void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
             cur_rx.total    = 0;
             cur_rx.sent     = 0;
             cur_rx.stage_rx = RX_STAGE_HDR;
+            dcache_clean32_range(s_err_crc, sizeof(s_err_crc));
+            HAL_I2C_Slave_Seq_Transmit_DMA(hi2c, s_err_crc, sizeof(s_err_crc), I2C_LAST_FRAME);
             HAL_I2C_EnableListen_IT(hi2c);
             return;
         }
@@ -319,15 +338,22 @@ void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
     }
     rx_txn_rollback("ER");
     tx_cancel_in_isr();
+    // dcache_clean32_range(s_err_none, sizeof(s_err_none));
+    // HAL_I2C_Slave_Seq_Transmit_DMA(hi2c, s_err_none, sizeof(s_err_none), I2C_LAST_FRAME);
     HAL_I2C_EnableListen_IT(hi2c);
 }
 /* End I2C HAL Address Callback */
 /* Start I2C HUB tools */
 int hub_send_tx_frame(uint8_t *buf, uint32_t total)
 {
+    uint32_t full_len = ALIGN32(total);
+    int buf_is_dyn = hub_tx_buf_is_from_arena(buf, full_len);
+
     hub_tx_task_t *task = (hub_tx_task_t*)hub_sdram_alloc_tx(ALIGN32(sizeof(hub_tx_task_t)));
     if (!task) {
-        hub_sdram_free_tx(buf, ALIGN32(total));
+        if (buf_is_dyn) {
+            hub_sdram_free_tx(buf, full_len);
+        }
         return 0;
     }
     dcache_clean32_range(buf, total);
@@ -335,12 +361,14 @@ int hub_send_tx_frame(uint8_t *buf, uint32_t total)
     task->total      = total;
     task->sent       = 0;
     task->stage_tx   = TX_STAGE_HDR;
-    task->alloc_flags= 0;
+    task->alloc_flags= buf_is_dyn ? 0u : HUB_TASK_F_STATIC_BUF;
     task->done_cb    = NULL;
     task->user_ctx   = NULL;
 
     if (tx_queue_send(&i2c_tx_stage_q, &task, TX_NO_WAIT) != TX_SUCCESS) {
-        hub_sdram_free_tx(buf, ALIGN32(total));
+        if (buf_is_dyn) {
+            hub_sdram_free_tx(buf, full_len);
+        }
         hub_sdram_free_tx(task, ALIGN32(sizeof(hub_tx_task_t)));
         return 0;
     }
@@ -384,6 +412,82 @@ void hub_send_tx_flush(void)
     }
     __enable_irq();
 }
+
+void Init_I2C_HUB_QUIC_RET(void){
+    /* HUB_RSP_OK -> 0*/
+    hub_rsp_t *br_ok = (hub_rsp_t*)s_rsp_ok;
+    br_ok->status    = HUB_RSP_OK;
+    br_ok->reserved  = 0;
+    br_ok->len       = 0;
+    br_ok->data_addr = 0;
+    uint32_t crc = iot_hub_crc32_hard(s_rsp_ok, RSP_HDR_SZ);
+    memcpy(s_rsp_ok + RSP_HDR_SZ, &crc, 4);
+    dcache_clean32_range(s_rsp_ok, sizeof(s_rsp_ok));
+    /* HUB_RSP_ERR_UNKNOWN_TARGET -> 1 */
+    hub_rsp_t *br_unknown_target = (hub_rsp_t*)s_unknown_target;
+    br_unknown_target->status    = HUB_RSP_ERR_UNKNOWN_TARGET;
+    br_unknown_target->reserved  = 0;
+    br_unknown_target->len       = 0;
+    br_unknown_target->data_addr = 0;
+    crc = iot_hub_crc32_hard(s_unknown_target, RSP_HDR_SZ);
+    memcpy(s_unknown_target + RSP_HDR_SZ, &crc, 4);
+    dcache_clean32_range(s_unknown_target, sizeof(s_unknown_target));
+    /* HUB_RSP_ERR_UNKNOWN_CMD -> 2 */
+    hub_rsp_t *br_unknown_cmd = (hub_rsp_t*)s_unknown_cmd;
+    br_unknown_cmd->status    = HUB_RSP_ERR_UNKNOWN_CMD;
+    br_unknown_cmd->reserved  = 0;
+    br_unknown_cmd->len       = 0;
+    br_unknown_cmd->data_addr = 0;
+    crc = iot_hub_crc32_hard(s_unknown_cmd, RSP_HDR_SZ);
+    memcpy(s_unknown_cmd + RSP_HDR_SZ, &crc, 4);
+    dcache_clean32_range(s_unknown_cmd, sizeof(s_unknown_cmd));
+    /* HUB_RSP_ERR_MEMORY -> 3 */
+    hub_rsp_t *br_err_mem = (hub_rsp_t*)s_err_mem;
+    br_err_mem->status    = HUB_RSP_ERR_MEMORY;
+    br_err_mem->reserved  = 0;
+    br_err_mem->len       = 0;
+    br_err_mem->data_addr = 0;
+    crc = iot_hub_crc32_hard(s_err_mem, RSP_HDR_SZ);
+    memcpy(s_err_mem + RSP_HDR_SZ, &crc, 4);
+    dcache_clean32_range(s_err_mem, sizeof(s_err_mem));
+    /* HUB_RSP_ERR_CRC -> 4 */
+    hub_rsp_t *br_err_crc = (hub_rsp_t*)s_err_crc;
+    br_err_crc->status    = HUB_RSP_ERR_CRC;
+    br_err_crc->reserved  = 0;
+    br_err_crc->len       = 0;
+    br_err_crc->data_addr = 0;
+    crc = iot_hub_crc32_hard(s_err_crc, RSP_HDR_SZ);
+    memcpy(s_err_crc + RSP_HDR_SZ, &crc, 4);
+    dcache_clean32_range(s_err_crc, sizeof(s_err_crc));
+    /* HUB_RSP_BUSY -> 5 */
+    hub_rsp_t *br_busy = (hub_rsp_t*)s_busy_frame;
+    br_busy->status    = HUB_RSP_BUSY;
+    br_busy->reserved  = 0;
+    br_busy->len       = 0;
+    br_busy->data_addr = 0;
+    crc = iot_hub_crc32_hard(s_busy_frame, RSP_HDR_SZ);
+    memcpy(s_busy_frame + RSP_HDR_SZ, &crc, 4);
+    dcache_clean32_range(s_busy_frame, sizeof(s_busy_frame));
+    /* HUB_RSP_WORKER_ACK -> 6 */
+    hub_rsp_t *br_worker_ack = (hub_rsp_t*)s_worker_ack_frame;
+    br_worker_ack->status    = HUB_RSP_WORKER_ACK;
+    br_worker_ack->reserved  = 0;
+    br_worker_ack->len       = 0;
+    br_worker_ack->data_addr = 0;
+    crc = iot_hub_crc32_hard(s_worker_ack_frame, RSP_HDR_SZ);
+    memcpy(s_worker_ack_frame + RSP_HDR_SZ, &crc, 4);
+    dcache_clean32_range(s_worker_ack_frame, sizeof(s_worker_ack_frame));
+    /* HUB_RSP_ERR_NONE -> 7 */
+    hub_rsp_t *br_err_none = (hub_rsp_t*)s_err_none;
+    br_err_none->status    = HUB_RSP_ERR_NONE;
+    br_err_none->reserved  = 0;
+    br_err_none->len       = 0;
+    br_err_none->data_addr = 0;
+    crc = iot_hub_crc32_hard(s_err_none, RSP_HDR_SZ);
+    memcpy(s_err_none + RSP_HDR_SZ, &crc, 4);
+    dcache_clean32_range(s_err_none, sizeof(s_err_none));
+}
+
 /* End I2C HUB tools */
 
 /* Start I2C HUB worker thread */
@@ -394,30 +498,7 @@ void iot_hub_start(void)
     static ULONG rsp_queue_buf   [QUEUE_LEN        * MSG_WORDS_PTR];
     static ULONG tx_stage_buf    [I2C_STAGE_Q_LEN  * MSG_WORDS_PTR];
     static UCHAR worker_stack[16384];
-    hub_rsp_t *br_busy = (hub_rsp_t*)s_busy_frame;
-    br_busy->status    = HUB_RSP_BUSY;
-    br_busy->reserved  = 0;
-    br_busy->len       = 0;
-    br_busy->data_addr = 0;
-    uint32_t crc = iot_hub_crc32_hard(s_busy_frame, RSP_HDR_SZ);
-    memcpy(s_busy_frame + RSP_HDR_SZ, &crc, 4);
-    dcache_clean32_range(s_busy_frame, sizeof(s_busy_frame));
-    hub_rsp_t *br_worker_ack = (hub_rsp_t*)s_worker_ack_frame;
-    br_worker_ack->status    = HUB_RSP_WORKER_ACK;
-    br_worker_ack->reserved  = 0;
-    br_worker_ack->len       = 0;
-    br_worker_ack->data_addr = 0;
-    crc = iot_hub_crc32_hard(s_worker_ack_frame, RSP_HDR_SZ);
-    memcpy(s_worker_ack_frame + RSP_HDR_SZ, &crc, 4);
-    dcache_clean32_range(s_worker_ack_frame, sizeof(s_worker_ack_frame));
-    hub_rsp_t *br_failed = (hub_rsp_t*)s_failed_mem;
-    br_failed->status    = HUB_RSP_ERR_MEMORY;
-    br_failed->reserved  = 0;
-    br_failed->len       = 0;
-    br_failed->data_addr = 0;
-    crc = iot_hub_crc32_hard(s_failed_mem, RSP_HDR_SZ);
-    memcpy(s_failed_mem + RSP_HDR_SZ, &crc, 4);
-    dcache_clean32_range(s_failed_mem, sizeof(s_failed_mem));
+    Init_I2C_HUB_QUIC_RET();
 
     UINT s;
     s = tx_queue_create(&cmd_queue, "cmd_queue", MSG_WORDS_PTR, cmd_queue_buf, QSIZE(cmd_queue_buf));
@@ -442,7 +523,6 @@ static VOID worker_thread_entry(ULONG arg)
 {
     (void)arg;
     for (;;) {
-        /* error work back */
         uint8_t *tx_frame_ptr = NULL;
         hub_cmd_t *cmd = NULL;
         tx_queue_receive(&cmd_queue, &cmd, TX_WAIT_FOREVER);
@@ -451,19 +531,18 @@ static VOID worker_thread_entry(ULONG arg)
         hub_operation_t   op        = cmd->operation;
         uint16_t          in_len    = cmd->len;
         uint32_t          data_addr = cmd->data_addr;
-        uint32_t rx_total = ALIGN32(CMD_HDR_SZ + ((op == HUB_OP_READ) ? 4U : ((uint32_t)in_len + 4U)));
+        uint32_t rx_total = ALIGN32( ((uint32_t)in_len + 4U));
         if (op == HUB_OP_READ) {
             hub_sdram_free_rx(cmd, rx_total);
             cmd = NULL;
         }
         /* CONTROLL REPLY*/
         switch (target) {
-            case HUB_TARGET_UART:
+            case HUB_TARGET_UART:{
                 if (op == HUB_OP_CONFIG) {
                     uart8_thread_start();
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
-                    // tx_hdr_ptr->status = HUB_RSP_OK;
                 } else if (op == HUB_OP_WRITE && in_len > 0) {
                     DEBUG_DUMP(IOT_LOG_ALL, "HUB_TARGET_UART: Sending %d bytes to UART8\r\n", in_len);
                     iot_uart8_tx_write((uint8_t *)payload, in_len);
@@ -474,20 +553,14 @@ static VOID worker_thread_entry(ULONG arg)
                     (void)uart8_post_read(in_len, data_addr);
                     goto _continue_loop_;
                 } else {
-                    uint32_t frame_len = RSP_HDR_SZ + 4U;
-                    tx_frame_ptr = (uint8_t*)hub_sdram_alloc_tx(ALIGN32(frame_len));
-                    if (tx_frame_ptr) {
-                        hub_rsp_t *rsp = (hub_rsp_t*)tx_frame_ptr;
-                        rsp->status    = HUB_RSP_ERR_UNKNOWN_CMD;
-                        rsp->reserved  = 0;
-                        rsp->len       = 0;
-                        rsp->data_addr = 0;
-                        uint32_t crc = iot_hub_crc32_hard(tx_frame_ptr, RSP_HDR_SZ);
-                        memcpy(tx_frame_ptr + RSP_HDR_SZ, &crc, 4U);
-                        dcache_clean32_range(tx_frame_ptr, frame_len);
-                    }
+                    DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_UART: Unknown operation %d\r\n", op);
+                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 }
                 break;
+            }
+#if IOT_HUB_GPIO
             case HUB_TARGET_GPIO:{
                 switch (op) {
                     case HUB_OP_CONFIG: {
@@ -497,8 +570,8 @@ static VOID worker_thread_entry(ULONG arg)
                                    ((hub_cfg_payload_t *)data_addr)->af);
                         hub_cfg_payload_t *cfg = (hub_cfg_payload_t *)data_addr;
                         hub_apply_gpio_cfg(cfg);
-                        tx_hdr_ptr->status = HUB_RSP_OK;
-                        break;
+                        if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                        goto _continue_loop_;  
                     }
                     case HUB_OP_WRITE: {
                         DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_GPIO: Writing pin_code=0x%04X, value=%d\r\n",
@@ -506,41 +579,64 @@ static VOID worker_thread_entry(ULONG arg)
                         uint8_t *val = (uint8_t *)data_addr;
                         GPIO_TypeDef *port = HUB_GET_PORT(*(uint16_t *)val);
                         HAL_GPIO_WritePin(port, HUB_GET_PIN(*(uint16_t *)val), (*(val+2) ? GPIO_PIN_SET : GPIO_PIN_RESET));
-                        tx_hdr_ptr->status = HUB_RSP_OK;
-                        break;
+                        if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                        goto _continue_loop_;  
                     }
                     case HUB_OP_READ: {
                         DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_GPIO: Reading pin_code=0x%04X\r\n",
                                    *(uint16_t *)data_addr);
-                        uint16_t pin_code = *(uint16_t *)data_addr;
-                        uint8_t *dest = (uint8_t *)data_addr;
-                        GPIO_TypeDef *port = HUB_GET_PORT(pin_code);
-                        dest[2] = (uint8_t)HAL_GPIO_ReadPin(port, HUB_GET_PIN(pin_code));
-                        tx_hdr_ptr->len = 1;
-                        tx_hdr_ptr->status = HUB_RSP_OK;
-                        break;
+                        /* temp reply */
+                        hub_send_tx_frame(s_rsp_ok, sizeof(s_rsp_ok));
+                        /* temp reply */
+                        goto _continue_loop_;  
                     }
-                    default: tx_hdr_ptr->status = HUB_RSP_ERR_UNKNOWN_CMD;
+                    default:{
+                        DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_GPIO: Unknown operation %d\r\n", op);
+                        // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
+                        if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                        goto _continue_loop_;  
+                    }
                 }
                 break;
             }
-            case HUB_TARGET_SPI: /*w5500_modbus_server_helper*/
+#endif
+            case HUB_TARGET_SPI:{ /*w5500_modbus_server_helper*/
                 if (op == HUB_OP_WRITE) {
                     w5500_modbus_server_helper();
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
                 } else {
+                    
+                    DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_SPI: Unknown operation %d\r\n", op);
+                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 }
                 break;
-            case HUB_TARGET_I2C:
-                tx_hdr_ptr->status = HUB_RSP_OK;
-                break;
+            }
+#if IOT_HUB_I2C
+            case HUB_TARGET_I2C:{
+                if (op == HUB_OP_WRITE) {
+                    hub_send_tx_frame(s_rsp_ok, sizeof(s_rsp_ok));
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
+                } else {
+                    DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_I2C: Unknown operation %d\r\n", op);
+                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
+                }
+            }
+#endif
+#if IOT_HUB_GPIO
             case HUB_TARGET_ADC:{
                 const hub_cfg_payload_t *pl = (const hub_cfg_payload_t *)data_addr;
                 const adc_map_t *am = hub_adc_lookup(pl->pin_code);
                 if (!am) {
-                    tx_hdr_ptr->status = HUB_RSP_ERR_UNKNOWN_TARGET;
-                    break;
+                    DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_ADC: erro while doing adc map %d\r\n", op);
+                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 }
                 if (op == HUB_OP_CONFIG) {
                     if (pl->cfg == HUB_IOCT_CFG_ANALOG) {
@@ -558,7 +654,8 @@ static VOID worker_thread_entry(ULONG arg)
                         /* Change to GPIO */
                         hub_adc_to_gpio(pl->pin_code, pl);
                     }
-                    tx_hdr_ptr->status = HUB_RSP_OK;
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 } else if (op == HUB_OP_READ) {
                     /* --------- READ：single sample (Polling) ---------------- */
                     ADC_ChannelConfTypeDef sConfig = {0};
@@ -570,24 +667,30 @@ static VOID worker_thread_entry(ULONG arg)
 
                     HAL_ADC_Start(&hadc1);
                     if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK) {
-                        *(uint32_t *)data_addr = HAL_ADC_GetValue(&hadc1);
-                        tx_hdr_ptr->len    = sizeof(uint32_t);
-                        tx_hdr_ptr->status = HUB_RSP_OK;
+                        /* temp reply */
+                        hub_send_tx_frame(s_rsp_ok, sizeof(s_rsp_ok));
+                        /* temp reply */
+                        goto _continue_loop_;
                     } else {
-                        tx_hdr_ptr->status = HUB_RSP_ERR_UNKNOWN_CMD;
+                        hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
+                        goto _continue_loop_;
                     }
                     HAL_ADC_Stop(&hadc1);
-
                 } else {
-                    tx_hdr_ptr->status = HUB_RSP_ERR_UNKNOWN_CMD;
+                    DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_ADC: Unknown operation %d\r\n", op);
+                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 }
                 break;
             }
             case HUB_TARGET_PWM:{
                 const pwm_map_t *pm = hub_pwm_lookup(((hub_cfg_payload_t *)data_addr)->pin_code);
                 if (!pm) {
-                    tx_hdr_ptr->status = HUB_RSP_ERR_UNKNOWN_TARGET;
-                    break;
+                    DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_PWM: erro while doing pwm map %d\r\n", op);
+                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 }
                 if (op == HUB_OP_CONFIG) {
                     const hub_cfg_payload_t *cfg = (const hub_cfg_payload_t *)data_addr;
@@ -597,33 +700,41 @@ static VOID worker_thread_entry(ULONG arg)
                     } else {
                         hub_pwm_to_gpio_generic(pm, cfg);
                     }
-                    tx_hdr_ptr->status = HUB_RSP_OK;
-
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 } else if (op == HUB_OP_WRITE) {
                     /* payload: uint16_t duty (0~10000) */
                     uint16_t duty = *(uint16_t *)data_addr;
                     __HAL_TIM_SET_COMPARE(pm->htim, pm->ch, duty);
-                    tx_hdr_ptr->status = HUB_RSP_OK;
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 } else if (op == HUB_OP_READ) {
                     /* Current duty write-back data_addr (uint16_t) */
                     uint16_t *out = (uint16_t *)data_addr;
                     *out = (uint16_t)__HAL_TIM_GET_COMPARE(pm->htim, pm->ch);
-                    tx_hdr_ptr->len = sizeof(uint16_t);
-                    tx_hdr_ptr->status = HUB_RSP_OK;
-
+                    hub_send_tx_frame(s_rsp_ok, sizeof(s_rsp_ok));
+                    goto _continue_loop_;
                 } else {
-                    tx_hdr_ptr->status = HUB_RSP_ERR_UNKNOWN_CMD;
+                    DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_PWM: Unknown operation %d\r\n", op);
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 }
                 break;
             }
-            case HUB_TARGET_DAC:
+            case HUB_TARGET_DAC:{
                 if (op == HUB_OP_WRITE) {
-                    tx_hdr_ptr->status = HUB_RSP_OK;
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 } else {
-                    tx_hdr_ptr->status = HUB_RSP_ERR_UNKNOWN_CMD;
+                    DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_DAC: Unknown operation %d\r\n", op);
+                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 }
                 break;
-            case HUB_TARGET_WIFI:
+            }
+#endif
+            case HUB_TARGET_WIFI:{
                 if (op == HUB_OP_CONFIG) {
                     uart7_thread_start();
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
@@ -639,46 +750,55 @@ static VOID worker_thread_entry(ULONG arg)
                     (void)uart7_post_read(in_len, data_addr);
                     goto _continue_loop_;
                 } else {
-                    uint32_t frame_len = RSP_HDR_SZ + 4U;
-                    tx_frame_ptr = (uint8_t*)hub_sdram_alloc_tx(ALIGN32(frame_len));
-                    if (tx_frame_ptr) {
-                        hub_rsp_t *rsp = (hub_rsp_t*)tx_frame_ptr;
-                        rsp->status    = HUB_RSP_ERR_UNKNOWN_CMD;
-                        rsp->reserved  = 0;
-                        rsp->len       = 0;
-                        rsp->data_addr = 0;
-                        uint32_t crc = iot_hub_crc32_hard(tx_frame_ptr, RSP_HDR_SZ);
-                        memcpy(tx_frame_ptr + RSP_HDR_SZ, &crc, 4U);
-                        dcache_clean32_range(tx_frame_ptr, frame_len);
-                    }
+                    DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_WIFI: Unknown operation %d\r\n", op);
+                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 }
                 break;
-            case HUB_TARGET_CAN:
-                if (op == HUB_OP_WRITE && in_len > 0) {
-                    tx_hdr_ptr->status = HUB_RSP_OK;
+            }
+#if IOT_HUB_CAN
+            case HUB_TARGET_CAN:{
+                if (op == HUB_OP_WRITE) {
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 } else {
-                    tx_hdr_ptr->status = HUB_RSP_ERR_UNKNOWN_CMD;
+                    DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_CAN: Unknown operation %d\r\n", op);
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 }
                 break;
+            }
+#endif
             case HUB_TARGET_SD:{
                 if (op == HUB_OP_CONFIG) {
                     tx_thread_resume(&fx_app_thread);
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 } else if (op == HUB_OP_READ) {
                     tx_frame_ptr = i2c_hub_filex_helper(tx_frame_ptr, cmd);
                     if (!tx_frame_ptr) {
-                        tx_hdr_ptr->status = HUB_RSP_ERR_MEMORY;
+                        hub_send_tx_frame(s_err_mem, sizeof(s_err_mem));
+                        goto _continue_loop_;
                     } else {
-                        tx_hdr_ptr->status = HUB_RSP_OK;
+                        /* temp reply */
+                        hub_send_tx_frame(s_rsp_ok, sizeof(s_rsp_ok));
+                        /* temp reply */
+                        goto _continue_loop_;
                     }
                 } else {
-                    tx_hdr_ptr->status = HUB_RSP_ERR_UNKNOWN_CMD;
+                    DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_CAN: Unknown operation %d\r\n", op);
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 }
                 break;
             }
             case HUB_TARGET_MEM:{
                 if (op != HUB_OP_READ || in_len == 0U) {
-                    tx_hdr_ptr->status = HUB_RSP_ERR_UNKNOWN_CMD;
-                    break;
+                    DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_MEM: no accept none read operation %d\r\n", op);
+                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
                 }
                 uint8_t subcmd = payload[0];
                 uint32_t resp_len = 0;
@@ -698,17 +818,13 @@ static VOID worker_thread_entry(ULONG arg)
                         resp_len = RSP_HDR_SZ + 4U;
                         tx_frame_ptr = (uint8_t *)hub_sdram_alloc_tx(ALIGN32(resp_len));
                         if (tx_frame_ptr) {
-                            hub_rsp_t *rsp = (hub_rsp_t *)tx_frame_ptr;
-                            rsp->status    = HUB_RSP_OK;
-                            rsp->reserved  = 0;
-                            rsp->len       = 0;
-                            rsp->data_addr = 0;
-                            uint32_t crc = iot_hub_crc32_hard(tx_frame_ptr, RSP_HDR_SZ);
-                            memcpy(tx_frame_ptr + RSP_HDR_SZ, &crc, 4U);
-                            dcache_clean32_range(tx_frame_ptr, resp_len);
+                            hub_send_tx_frame(s_rsp_ok, sizeof(s_rsp_ok));
+                            if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                            goto _continue_loop_;
                         } else {
-                            tx_hdr_ptr->status = HUB_RSP_ERR_MEMORY;
-                            tx_hdr_ptr->len    = 0;
+                            hub_send_tx_frame(s_err_mem, sizeof(s_err_mem));
+                            if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                            goto _continue_loop_;
                         }
                         break;
                     case HUB_MEM_CMD_STATS:
@@ -742,30 +858,23 @@ static VOID worker_thread_entry(ULONG arg)
                             memcpy(tx_frame_ptr + resp_len - 4U, &crc, 4U);
                             dcache_clean32_range(tx_frame_ptr, resp_len);
                         } else {
-                            tx_hdr_ptr->status = HUB_RSP_ERR_MEMORY;
-                            tx_hdr_ptr->len    = 0;
+                            hub_send_tx_frame(s_err_mem, sizeof(s_err_mem));
+                            if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                            goto _continue_loop_;
                         }
                         break;
-                    default:
-                        tx_hdr_ptr->status = HUB_RSP_ERR_UNKNOWN_CMD;
-                        tx_hdr_ptr->len    = 0;
-                        break;
+                    default:{
+                        DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_MEM: Unknown operation %d\r\n", op);
+                        if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                        goto _continue_loop_;
+                    }
                 }
                 break;
             }
             default: {
-                uint32_t frame_len = RSP_HDR_SZ + 4U;
-                tx_frame_ptr = (uint8_t*)hub_sdram_alloc_tx(ALIGN32(frame_len));
-                if (tx_frame_ptr) {
-                    hub_rsp_t *rsp = (hub_rsp_t*)tx_frame_ptr;
-                    rsp->status    = HUB_RSP_ERR_UNKNOWN_TARGET;
-                    rsp->reserved  = 0;
-                    rsp->len       = 0;
-                    rsp->data_addr = 0;
-                    uint32_t crc = iot_hub_crc32_hard(tx_frame_ptr, RSP_HDR_SZ);
-                    memcpy(tx_frame_ptr + RSP_HDR_SZ, &crc, 4U);
-                    dcache_clean32_range(tx_frame_ptr, frame_len);
-                }
+                DEBUG_DUMP(IOT_LOG_ERR, "Unknown target %d\r\n", target);
+                if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                goto _continue_loop_;
                 break;
             }
         }
@@ -777,22 +886,8 @@ static VOID worker_thread_entry(ULONG arg)
             DEBUG_DUMP(IOT_LOG_ERR, "worker_thread_entry: tx_frame_ptr is NULL\r\n");
             goto _continue_loop_;
         }
-        hub_tx_task_t *task = (hub_tx_task_t*)hub_sdram_alloc_tx(ALIGN32(sizeof(hub_tx_task_t)));
-        if (!task) {
-            hub_sdram_free_tx(tx_frame_ptr, ALIGN32(RSP_HDR_SZ + ((hub_rsp_t*)tx_frame_ptr)->len + 4U));
-            tx_frame_ptr = NULL;
-            continue;
-        }
-        uint32_t frame_len = RSP_HDR_SZ + in_len + 4;
-        dcache_clean32_range(tx_frame_ptr, frame_len);
-        task->buf      = tx_frame_ptr;
-        task->total    = frame_len;
-        task->sent     = 0U;
-        task->stage_tx = TX_STAGE_HDR;
-        if (tx_queue_send(&i2c_tx_stage_q, &task, TX_NO_WAIT) != TX_SUCCESS) {
-            hub_sdram_free_tx(tx_frame_ptr, ALIGN32(frame_len));
-            hub_sdram_free_tx(task, ALIGN32(sizeof(hub_tx_task_t)));
-        } else {
+        if (hub_send_tx_frame(tx_frame_ptr, RSP_HDR_SZ + in_len + 4U) == 0) {
+            DEBUG_DUMP(IOT_LOG_ERR, "worker_thread_entry: hub_send_tx_frame failed\r\n");
             tx_frame_ptr = NULL;
         }
     _continue_loop_:
