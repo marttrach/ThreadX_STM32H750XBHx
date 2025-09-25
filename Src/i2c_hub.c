@@ -4,7 +4,7 @@
 #include "iot_util.h"
 #endif
 #include <string.h>
-#include <stddef.h>
+#include <stddef.h> 
 #include <stdint.h>
 #include "usart.h"
 #include "i2c.h"
@@ -15,6 +15,7 @@
 #include "i2c_hub_uart.h"
 #include "i2c_hub_modbus_server.h"
 #include "i2c_hub_filex.h"
+#include "modbus_formosa.h"
 
 static TX_QUEUE cmd_queue;
 static TX_QUEUE rsp_queue;
@@ -187,7 +188,7 @@ void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
                 g_rd_mode = RD_DATA_WAIT;
             }
         }
-        uint32_t rx_plen = (rx_hdr_ptr->operation == HUB_OP_READ) ? 4U : ((uint32_t)rx_hdr_ptr->len + 4U);
+        uint32_t rx_plen = ((uint32_t)rx_hdr_ptr->len + 4U);
         uint32_t rx_head_mark = hub_spsc_mark_head(&g_hub_rx_arena);
         uint32_t frame_total  = CMD_HDR_SZ + rx_plen;
 
@@ -338,8 +339,6 @@ void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
     }
     rx_txn_rollback("ER");
     tx_cancel_in_isr();
-    // dcache_clean32_range(s_err_none, sizeof(s_err_none));
-    // HAL_I2C_Slave_Seq_Transmit_DMA(hi2c, s_err_none, sizeof(s_err_none), I2C_LAST_FRAME);
     HAL_I2C_EnableListen_IT(hi2c);
 }
 /* End I2C HAL Address Callback */
@@ -373,6 +372,26 @@ int hub_send_tx_frame(uint8_t *buf, uint32_t total)
         return 0;
     }
     return 1;
+}
+
+int hub_gen2send_tx_frame(uint8_t *data, uint32_t length)
+{
+    uint32_t frame_len = RSP_HDR_SZ + length + 4U;
+    uint8_t *tx_frame_ptr = (uint8_t*)hub_sdram_alloc_tx(ALIGN32(frame_len));
+
+    memcpy(tx_frame_ptr + RSP_HDR_SZ , data, length);
+    dcache_invalidate32_range(tx_frame_ptr, ALIGN32(frame_len));
+    if (tx_frame_ptr) {
+        hub_rsp_t *rsp = (hub_rsp_t*)tx_frame_ptr;
+        rsp->status    = HUB_RSP_OK;
+        rsp->reserved  = 0;
+        rsp->len       = length;
+        rsp->data_addr = 0;
+        uint32_t crc = iot_hub_crc32_hard(tx_frame_ptr, RSP_HDR_SZ + length);
+        memcpy(tx_frame_ptr + RSP_HDR_SZ + length, &crc, 4U);
+        dcache_clean32_range(tx_frame_ptr, frame_len);
+    }
+    return hub_send_tx_frame(tx_frame_ptr, ALIGN32(frame_len));
 }
 
 int hub_send_tx_task(hub_tx_task_t *task)
@@ -468,7 +487,6 @@ void Init_I2C_HUB_QUIC_RET(void){
     crc = iot_hub_crc32_hard(s_busy_frame, RSP_HDR_SZ);
     memcpy(s_busy_frame + RSP_HDR_SZ, &crc, 4);
     dcache_clean32_range(s_busy_frame, sizeof(s_busy_frame));
-    /* HUB_RSP_WORKER_ACK -> 6 */
     hub_rsp_t *br_worker_ack = (hub_rsp_t*)s_worker_ack_frame;
     br_worker_ack->status    = HUB_RSP_WORKER_ACK;
     br_worker_ack->reserved  = 0;
@@ -514,7 +532,7 @@ void iot_hub_start(void)
                  worker_stack, sizeof(worker_stack),
                  10, 10, TX_NO_TIME_SLICE, TX_DONT_START);
     hub_mem_init();
-    iot_uart_init();
+    // iot_uart_init();
     HAL_I2C_EnableListen_IT(&hi2c2);
     tx_thread_resume(&worker_thread);
 }
@@ -531,26 +549,98 @@ static VOID worker_thread_entry(ULONG arg)
         hub_operation_t   op        = cmd->operation;
         uint16_t          in_len    = cmd->len;
         uint32_t          data_addr = cmd->data_addr;
-        uint32_t rx_total = ALIGN32( ((uint32_t)in_len + 4U));
+        uint32_t rx_total = ALIGN32(CMD_HDR_SZ + ((uint32_t)in_len + 4U));
         if (op == HUB_OP_READ) {
             hub_sdram_free_rx(cmd, rx_total);
             cmd = NULL;
         }
         /* CONTROLL REPLY*/
         switch (target) {
-            case HUB_TARGET_UART:{
+            case HUB_TARGET_UART:
                 if (op == HUB_OP_CONFIG) {
-                    uart8_thread_start();
+                    // uart8_thread_start();
+                    hub_uart_cfg cfg;
+                    memset(&cfg, 0, sizeof(hub_uart_cfg));
+                    memcpy(&cfg, cmd->payload, sizeof(hub_uart_cfg) < in_len ? sizeof(hub_uart_cfg) : in_len);
+                    DEBUG_DUMP(IOT_LOG_INFO, "HUB_TARGET_UART.HUB_OP_CONFIG Type:%d Name: %d\r\n", cfg.type, cfg.name);
+                    switch (cfg.type) {
+                        case hub_config_rs485:
+                            if (cfg.name == hub_config_baudrate) {
+                                uint32_t baud = 0;
+                                memcpy(&baud, cfg.values, sizeof(uint32_t));
+                                
+                                modbus_thread_stop();
+                                MX_UART8_DeInit();
+                                MX_UART8_Init_WithBaud(baud);
+                                modbus_thread_start();
+                            }
+                            break;
+                        case hub_config_modbus:
+                            if (cfg.name == hub_config_thread_run) {
+                                uint8_t value = 0;
+                                memcpy(&value, cfg.values, sizeof(uint8_t));
+                                if (value == 0)
+                                    modbus_thread_stop();
+                                else
+                                    modbus_thread_start();
+                            }
+                            else if (cfg.name == hub_config_ups120) {
+                                uint8_t value = 0;
+                                memcpy(&value, cfg.values, sizeof(uint8_t));
+                                formosa_set_ups120(value);
+                            }
+                            else if (cfg.name == hub_config_init_device) {
+                                formosa_init_setting();
+                            }
+                            else if (cfg.name == hub_config_slave_addr) {
+                                formosa_set_slave_addr(cfg.values);
+                            }
+                            else if (cfg.name == hub_config_decice_qty) {
+                                formosa_set_qty(cfg.values);
+                            }
+                            break;
+                    }
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
+                    // tx_hdr_ptr->status = HUB_RSP_OK;
                 } else if (op == HUB_OP_WRITE && in_len > 0) {
                     DEBUG_DUMP(IOT_LOG_ALL, "HUB_TARGET_UART: Sending %d bytes to UART8\r\n", in_len);
                     iot_uart8_tx_write((uint8_t *)payload, in_len);
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
                 } else if (op == HUB_OP_READ) {
-                    DEBUG_DUMP(IOT_LOG_ALL, "HUB_TARGET_UART: Receiving %d bytes from UART8\r\n", in_len);
-                    (void)uart8_post_read(in_len, data_addr);
+                    // DEBUG_DUMP(IOT_LOG_ALL, "HUB_TARGET_UART: Receiving %d bytes from UART8\r\n", in_len);
+                    // (void)uart8_post_read(in_len, data_addr);
+                    hub_uart_read rd;
+                    memset(&rd, 0, sizeof(hub_uart_read));
+                    memcpy(&rd, payload, sizeof(hub_uart_read) < in_len ? sizeof(hub_uart_read) : in_len);
+                    DEBUG_DUMP(IOT_LOG_INFO, "HUB_TARGET_UART.HUB_OP_READ Type:%d, Num: %d\r\n", rd.type, rd.num);
+                    switch (rd.type) {
+                        case hub_read_length:
+                            for (int i = 0; i < formosa_device_count; i++) {
+                                if (rd.num == formosa_setting[i].slave_addr) {
+                                    uint16_t data_len = 0;
+                                    data_len = formosa_setting[i].summamry_len + formosa_setting[i].detail_len;
+                                    hub_gen2send_tx_frame(&data_len, 2);
+                                    break;
+                                }
+                            }
+                            break;
+                        case hub_read_content:
+                            for (int i = 0; i < formosa_device_count; i++) {
+                                if (rd.num == formosa_setting[i].slave_addr) {
+                                    uint16_t data_len = 0;
+                                    data_len = formosa_setting[i].summamry_len + formosa_setting[i].detail_len;
+                                    uint8_t data_content[data_len];
+                                    memcpy(data_content, formosa_setting[i].summamry, formosa_setting[i].summamry_len);
+                                    memcpy(data_content + formosa_setting[i].summamry_len, formosa_setting[i].detail, formosa_setting[i].detail_len);
+                                    hub_gen2send_tx_frame(data_content, data_len);
+                                    break;
+                                }
+                            }
+                            break;
+                    }
+
                     goto _continue_loop_;
                 } else {
                     DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_UART: Unknown operation %d\r\n", op);
@@ -559,7 +649,6 @@ static VOID worker_thread_entry(ULONG arg)
                     goto _continue_loop_;
                 }
                 break;
-            }
 #if IOT_HUB_GPIO
             case HUB_TARGET_GPIO:{
                 switch (op) {
