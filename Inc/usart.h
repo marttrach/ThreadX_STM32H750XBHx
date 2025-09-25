@@ -45,6 +45,8 @@ extern UART_HandleTypeDef huart8;
 void MX_UART5_Init(void);
 void MX_UART7_Init(void);
 void MX_UART8_Init(void);
+void MX_UART8_Init_WithBaud(uint32_t baud);
+void MX_UART8_DeInit(void);
 
 /* USER CODE BEGIN Prototypes */
 

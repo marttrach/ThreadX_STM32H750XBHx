@@ -109,6 +109,36 @@ struct hub_rx_task_t_{
     hub_rx_stage_t stage_rx;
 };
 
+typedef struct {
+    uint8_t         type;
+    uint8_t         name;
+    uint8_t         values[6];
+} hub_uart_cfg ;
+
+typedef enum {
+    hub_config_rs485 = 1,
+    hub_config_modbus = 2
+}  hub_uart_cfg_type ;
+
+typedef enum {
+    hub_config_baudrate = 0,
+    hub_config_thread_run = 1,
+    hub_config_ups120 = 2,
+    hub_config_init_device = 3,
+    hub_config_slave_addr = 4,
+    hub_config_decice_qty = 5
+}  hub_uart_cfg_name ;
+
+typedef struct {
+    uint8_t         type;
+    uint8_t         num;
+} hub_uart_read ;
+
+typedef enum {
+    hub_read_length = 1,
+    hub_read_content = 2
+}  hub_uart_read_type ;
+
 /* CMD */
 typedef struct __attribute__((packed, aligned(4))) {
     uint8_t  target;

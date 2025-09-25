@@ -103,6 +103,8 @@ set(MX_Application_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/i2c_hub_w55k.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/i2c_hub_modbus_server.c
     # ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/bsp_iot_sdram.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/modbus_rtu_client.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/modbus_formosa.c
 )
 
 # STM32 HAL/LL Drivers
