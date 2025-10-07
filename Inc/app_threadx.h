@@ -44,7 +44,9 @@ extern "C" {
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-
+#if IOT_HUB_RTC_TEST
+extern TX_THREAD rtc_datetime_thread;
+#endif
 /* USER CODE END EC */
 
 /* Private defines -----------------------------------------------------------*/

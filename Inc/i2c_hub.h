@@ -192,6 +192,12 @@ typedef struct __attribute__((packed)){
     uint8_t  af;              /* Alternate Function (0 = no change) */
 } hub_cfg_payload_t;
 
+typedef enum {
+    HUB_SD_CMD_WRITE = 0,
+    HUB_SD_CMD_READ  = 1,
+    HUB_SD_CMD_DELETE = 2,
+} hub_sd_cmd_t;
+
 /* Rx Tx Transaction Mark */
 typedef struct {
     uint8_t  *ptr;
@@ -212,8 +218,9 @@ _Static_assert(sizeof(void*) == sizeof(ULONG), "Pointer size must equal ULONG on
 
 void iot_hub_start(void);
 uint32_t iot_hub_crc32_hard(const uint8_t *buf, size_t len);
+#if IOT_HUB_DMA_UART && IOT_HUB_MEM_CTL
 void hub_send_tx_flush(void);
-int hub_send_tx_frame(uint8_t *buf, uint32_t total);
-int hub_send_tx_task(hub_tx_task_t *task);
+void hub_send_tx_task(hub_tx_task_t *task);
+#endif /* IOT_HUB_DMA_UART && IOT_HUB_MEM_CTL */
 
 #endif // I2C_HUB_H

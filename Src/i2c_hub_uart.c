@@ -1,7 +1,9 @@
+#include "iot.h"
+#if IOT_HUB_DMA_UART
+
 #include "i2c_hub_uart.h"
 #include <string.h>
 #include "main.h"
-#include "iot.h"
 #include "stm32h7xx_hal_uart.h"
 
 static uint8_t  uart7_dma_rx_buf[UART_RX_BUF_SZ] __attribute__((aligned(32)));
@@ -921,7 +923,7 @@ static VOID uart7_thread_entry(ULONG arg)
                 DEBUG_DUMP(IOT_LOG_ALL, "\r\n");
             }
             slot->task.total = frame_len; 
-            (void)hub_send_tx_task(&slot->task);
+            hub_send_tx_task(&slot->task);
         }
     }
 }
@@ -997,8 +999,10 @@ static VOID uart8_thread_entry(ULONG arg)
                 DEBUG_DUMP(IOT_LOG_ALL, "\r\n");
             }
             slot->task.total = frame_len; 
-            (void)hub_send_tx_task(&slot->task);
+            hub_send_tx_task(&slot->task);
         }
     }
 }
 /* Thread END*/
+
+#endif /* IOT_HUB_DMA_UART */

@@ -15,6 +15,7 @@
 #include "i2c_hub_uart.h"
 #include "i2c_hub_modbus_server.h"
 #include "i2c_hub_filex.h"
+#include "app_filex.h"
 #include "modbus_formosa.h"
 
 static TX_QUEUE cmd_queue;
@@ -340,7 +341,7 @@ void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
 }
 /* End I2C HAL Address Callback */
 /* Start I2C HUB tools */
-int hub_send_tx_frame(uint8_t *buf, uint32_t total)
+static uint8_t hub_send_tx_frame(uint8_t *buf, uint32_t total)
 {
     uint32_t full_len = ALIGN32(total);
     int buf_is_dyn = hub_tx_buf_is_from_arena(buf, full_len);
@@ -371,7 +372,7 @@ int hub_send_tx_frame(uint8_t *buf, uint32_t total)
     return 1;
 }
 
-int hub_gen2send_tx_frame(uint8_t *data, uint32_t length)
+uint8_t hub_gen2send_tx_frame(uint8_t *data, uint32_t length)
 {
     uint32_t frame_len = RSP_HDR_SZ + length + 4U;
     uint8_t *tx_frame_ptr = (uint8_t*)hub_sdram_alloc_tx(ALIGN32(frame_len));
@@ -391,16 +392,18 @@ int hub_gen2send_tx_frame(uint8_t *data, uint32_t length)
     return hub_send_tx_frame(tx_frame_ptr, ALIGN32(frame_len));
 }
 
-int hub_send_tx_task(hub_tx_task_t *task)
+#if IOT_HUB_DMA_UART && IOT_HUB_MEM_CTL
+void hub_send_tx_task(hub_tx_task_t *task)
 {
     dcache_clean32_range(task->buf, task->total);
     task->sent     = 0;
     task->stage_tx = TX_STAGE_HDR;
 
     if (tx_queue_send(&i2c_tx_stage_q, &task, TX_NO_WAIT) != TX_SUCCESS) {
-        return 0;
+        Error_Handler();
+        // return 0;
     }
-    return 1;
+    // return 1;
 }
 
 void hub_send_tx_flush(void)
@@ -428,8 +431,9 @@ void hub_send_tx_flush(void)
     }
     __enable_irq();
 }
+#endif /* IOT_HUB_DMA_UART && IOT_HUB_MEM_CTL */
 
-void Init_I2C_HUB_QUIC_RET(void){
+static void Init_I2C_HUB_QUIC_RET(void){
     /* HUB_RSP_OK -> 0*/
     hub_rsp_t *br_ok = (hub_rsp_t*)s_rsp_ok;
     br_ok->status    = HUB_RSP_OK;
@@ -531,6 +535,9 @@ void iot_hub_start(void)
     hub_mem_init();
     // iot_uart_init();
     HAL_I2C_EnableListen_IT(&hi2c2);
+#if IOT_HUB_RTC_TEST
+    tx_thread_resume(&rtc_datetime_thread);
+#endif
     tx_thread_resume(&worker_thread);
 }
 
@@ -547,13 +554,36 @@ static VOID worker_thread_entry(ULONG arg)
         uint16_t          in_len    = cmd->len;
         uint32_t          data_addr = cmd->data_addr;
         uint32_t rx_total = ALIGN32(CMD_HDR_SZ + ((uint32_t)in_len + 4U));
+        char read_path_buf[FX_MAXIMUM_PATH];
+        read_path_buf[0] = '\0';
+        if ((op == HUB_OP_READ) && (in_len > 0U)) {
+            size_t copy_len = (in_len < (uint16_t)FX_MAXIMUM_PATH) ? in_len : (FX_MAXIMUM_PATH - 1U);
+            memcpy(read_path_buf, payload, copy_len);
+            read_path_buf[copy_len] = '\0';
+            while (copy_len > 0U) {
+                char c = read_path_buf[copy_len - 1U];
+                if (c == '\r' || c == '\n' || c == ' ' || c == '\t') {
+                    read_path_buf[--copy_len] = '\0';
+                } else {
+                    break;
+                }
+            }
+            size_t start = 0U;
+            while (read_path_buf[start] == ' ' || read_path_buf[start] == '\t') {
+                ++start;
+            }
+            if (start > 0U) {
+                size_t remaining = strlen(&read_path_buf[start]);
+                memmove(read_path_buf, &read_path_buf[start], remaining + 1U);
+            }
+        }
         if (op == HUB_OP_READ) {
             hub_sdram_free_rx(cmd, rx_total);
             cmd = NULL;
         }
         /* CONTROLL REPLY*/
         switch (target) {
-            case HUB_TARGET_UART:
+            case HUB_TARGET_UART:{
                 if (op == HUB_OP_CONFIG) {
                     // uart8_thread_start();
                     hub_uart_cfg cfg;
@@ -599,12 +629,16 @@ static VOID worker_thread_entry(ULONG arg)
                     }
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
-                } else if (op == HUB_OP_WRITE && in_len > 0) {
+                }
+#if IOT_HUB_DMA_UART
+                else if (op == HUB_OP_WRITE && in_len > 0) {
                     DEBUG_DUMP(IOT_LOG_ALL, "HUB_TARGET_UART. write %d bytes to UART8\r\n", in_len);
                     iot_uart8_tx_write((uint8_t *)payload, in_len);
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
-                } else if (op == HUB_OP_READ) {
+                } 
+#endif
+                else if (op == HUB_OP_READ) {
                     // DEBUG_DUMP(IOT_LOG_ALL, "HUB_TARGET_UART: Receiving %d bytes from UART8\r\n", in_len);
                     // (void)uart8_post_read(in_len, data_addr);
                     hub_uart_read rd;
@@ -646,13 +680,13 @@ static VOID worker_thread_entry(ULONG arg)
                 }
                 else {
                     DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_UART: Unknown operation %d\r\n", op);
-                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
                 }
                 break;
-#if IOT_HUB_GPIO
+            }
             case HUB_TARGET_GPIO:{
+#if IOT_HUB_GPIO
                 switch (op) {
                     case HUB_OP_CONFIG: {
                         DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_GPIO: Configuring pin_code=0x%04X, cfg=%d, af=%d\r\n",
@@ -683,14 +717,18 @@ static VOID worker_thread_entry(ULONG arg)
                     }
                     default:{
                         DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_GPIO: Unknown operation %d\r\n", op);
-                        // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
                         if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                         goto _continue_loop_;  
                     }
                 }
                 break;
-            }
+#else
+                DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_GPIO: Not Support operation %d\r\n", op);
+                if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                goto _continue_loop_;
+                break;
 #endif
+            }
             case HUB_TARGET_SPI:{ /*w5500_modbus_server_helper*/
                 if (op == HUB_OP_CONFIG) {
                     hub_spi_cfg cfg;
@@ -730,33 +768,35 @@ static VOID worker_thread_entry(ULONG arg)
                 }
                 else {
                     DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_SPI: Unknown operation %d\r\n", op);
-                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
                 }
                 if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                 goto _continue_loop_;
                 break;
             }
-#if IOT_HUB_I2C
             case HUB_TARGET_I2C:{
+#if IOT_HUB_I2C
                 if (op == HUB_OP_WRITE) {
                     hub_send_tx_frame(s_rsp_ok, sizeof(s_rsp_ok));
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
                 } else {
                     DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_I2C: Unknown operation %d\r\n", op);
-                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
                 }
-            }
+#else
+                DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_I2C: Not Support operation %d\r\n", op);
+                if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                goto _continue_loop_;
+                break;
 #endif
-#if IOT_HUB_GPIO
+            }
             case HUB_TARGET_ADC:{
+#if IOT_HUB_ADC
                 const hub_cfg_payload_t *pl = (const hub_cfg_payload_t *)data_addr;
                 const adc_map_t *am = hub_adc_lookup(pl->pin_code);
                 if (!am) {
                     DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_ADC: erro while doing adc map %d\r\n", op);
-                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
                 }
@@ -800,17 +840,22 @@ static VOID worker_thread_entry(ULONG arg)
                     HAL_ADC_Stop(&hadc1);
                 } else {
                     DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_ADC: Unknown operation %d\r\n", op);
-                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
                 }
                 break;
+#else
+                DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_ADC: Not Support operation %d\r\n", op);
+                if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                goto _continue_loop_;
+                break;
+#endif
             }
             case HUB_TARGET_PWM:{
+#if IOT_HUB_PWM
                 const pwm_map_t *pm = hub_pwm_lookup(((hub_cfg_payload_t *)data_addr)->pin_code);
                 if (!pm) {
                     DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_PWM: erro while doing pwm map %d\r\n", op);
-                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
                 }
@@ -842,21 +887,33 @@ static VOID worker_thread_entry(ULONG arg)
                     goto _continue_loop_;
                 }
                 break;
+#else
+                DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_PWM: Not Support operation %d\r\n", op);
+                if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                goto _continue_loop_;
+                break;
+#endif                
             }
             case HUB_TARGET_DAC:{
+#if IOT_HUB_DAC
                 if (op == HUB_OP_WRITE) {
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
                 } else {
                     DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_DAC: Unknown operation %d\r\n", op);
-                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
                 }
                 break;
-            }
+#else
+                DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_DAC: Not Support operation %d\r\n", op);
+                if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                goto _continue_loop_;
+                break;
 #endif
+            }
             case HUB_TARGET_WIFI:{
+#if IOT_HUB_WIFI                
                 if (op == HUB_OP_CONFIG) {
                     uart7_thread_start();
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
@@ -872,14 +929,22 @@ static VOID worker_thread_entry(ULONG arg)
                     goto _continue_loop_;
                 } else {
                     DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_WIFI: Unknown operation %d\r\n", op);
-                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
                 }
+                DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_WIFI: Not Support operation %d\r\n", op);
+                if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                goto _continue_loop_;
                 break;
+#else
+                DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_WIFI: Not Support operation %d\r\n", op);
+                if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                goto _continue_loop_;
+                break;
+#endif
             }
-#if IOT_HUB_CAN
             case HUB_TARGET_CAN:{
+#if IOT_HUB_CAN
                 if (op == HUB_OP_WRITE) {
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
@@ -889,17 +954,129 @@ static VOID worker_thread_entry(ULONG arg)
                     goto _continue_loop_;
                 }
                 break;
-            }
-#endif
-            case HUB_TARGET_SD:{
-                DEBUG_DUMP(IOT_LOG_WARNING, "HUB_TARGET_SD: FileX interface disabled\r\n");
+#else
+                DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_CAN: Not Support operation %d\r\n", op);
                 if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                 goto _continue_loop_;
+                break;
+#endif
+        }
+            case HUB_TARGET_SD:{
+                if (op == HUB_OP_CONFIG) {
+                    static const char *const k_test_files[] = {
+                        "test1.csv",
+                        "test2.csv",
+                        "test3.txt"
+                    };
+                    const char empty_buf[] = "";
+                    for (size_t i = 0U; i < (sizeof(k_test_files) / sizeof(k_test_files[0])); ++i) {
+                        const char *filename = k_test_files[i];
+                        FX_DIR_ENTRY entry;
+                        UINT st = FX_Stat(filename, &entry);
+                        if (st == FX_SUCCESS) {
+                            DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_SD: '%s' already exists, skip create\r\n", filename);
+                            continue;
+                        }
+                        if (st != FX_NOT_FOUND) {
+                            DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_SD: FX_Stat('%s') failed: 0x%02X\r\n", filename, st);
+                            continue;
+                        }
+                        st = FX_WriteFile(filename, empty_buf, 0U, FX_WRITE_MODE_NEW);
+                        if (st != FX_SUCCESS) {
+                            DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_SD: create '%s' failed: 0x%02X\r\n", filename, st);
+                        } else {
+                            DEBUG_DUMP(IOT_LOG_INFO, "HUB_TARGET_SD: created '%s'\r\n", filename);
+                        }
+                    }
+
+                    static const char append_buf[] = "append test! \r\n";
+                    const uint32_t append_len = (uint32_t)strlen(append_buf);
+                    for (int i = 0; i < 10; ++i) {
+                        UINT st = FX_WriteFile("test3.txt", append_buf, append_len, FX_WRITE_MODE_APPEND);
+                        if (st != FX_SUCCESS) {
+                            DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_SD: append to 'test3.txt' failed (iter=%d): 0x%02X\r\n", i, st);
+                            break;
+                        }
+                    }
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
+                } else if (op == HUB_OP_WRITE) {
+                    FX_DIR_ENTRY entry;
+                    UINT st = FX_Stat("test1.csv", &entry);
+                    if (st == FX_SUCCESS) {
+                        st = FX_DeleteFile("test1.csv");
+                        if (st != FX_SUCCESS) {
+                            DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_SD: delete 'test1.csv' failed: 0x%02X\r\n", st);
+                        } else {
+                            DEBUG_DUMP(IOT_LOG_INFO, "HUB_TARGET_SD: deleted 'test1.csv'\r\n");
+                        }
+                    } else if (st == FX_NOT_FOUND) {
+                        DEBUG_DUMP(IOT_LOG_DEBUG, "HUB_TARGET_SD: 'test1.csv' not found, skip delete\r\n");
+                    } else {
+                        DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_SD: FX_Stat('test1.csv') failed: 0x%02X\r\n", st);
+                    }
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
+                } else if (op == HUB_OP_READ) {
+                    UINT st = is_filex_mount();
+                    if (st != FX_SUCCESS) {
+                        DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_SD: mount failed: 0x%02X\r\n", st);
+                        if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                        goto _continue_loop_;
+                    }
+                    ULONG64 available_bytes = 0ULL;
+                    st = fx_media_extended_space_available(&sdio_disk, &available_bytes);
+                    if (st != FX_SUCCESS) {
+                        DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_SD: query free space failed: 0x%02X\r\n", st);
+                    } else {
+                        uint64_t total_bytes =
+                            (uint64_t)sdio_disk.fx_media_total_sectors *
+                            (uint64_t)sdio_disk.fx_media_bytes_per_sector;
+                        if (total_bytes == 0ULL) {
+                            DEBUG_DUMP(IOT_LOG_WARNING, "HUB_TARGET_SD: media reports zero capacity\r\n");
+                        } else {
+                            uint64_t free_clamped = (available_bytes > total_bytes) ?
+                                                    total_bytes :
+                                                    (uint64_t)available_bytes;
+                            uint64_t used_bytes = total_bytes - free_clamped;
+                            uint64_t used_pct_x100 = (used_bytes * 10000ULL + (total_bytes / 2ULL)) / total_bytes;
+                            if (used_pct_x100 > 10000ULL) {
+                                used_pct_x100 = 10000ULL;
+                            }
+                            uint64_t free_pct_x100 = 10000ULL - used_pct_x100;
+                            unsigned int used_whole = (unsigned int)(used_pct_x100 / 100ULL);
+                            unsigned int used_frac  = (unsigned int)(used_pct_x100 % 100ULL);
+                            unsigned int free_whole = (unsigned int)(free_pct_x100 / 100ULL);
+                            unsigned int free_frac  = (unsigned int)(free_pct_x100 % 100ULL);
+                            DEBUG_DUMP(IOT_LOG_INFO,
+                                       "HUB_TARGET_SD: used=%u.%02u%% free=%u.%02u%%\r\n",
+                                       used_whole,
+                                       used_frac,
+                                       free_whole,
+                                       free_frac);
+                        }
+                        const char *dir_path = (read_path_buf[0] != '\0') ? read_path_buf : "/";
+                        UINT list_st = FX_ListDirSimple(dir_path);
+                        if (list_st != FX_SUCCESS) {
+                            DEBUG_DUMP(IOT_LOG_ERR,
+                                       "HUB_TARGET_SD: list dir '%s' failed: 0x%02X\r\n",
+                                       dir_path,
+                                       list_st);
+                        }
+                    }
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
+                } else {
+                    DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_SD: Unknown operation %d\r\n", op);
+                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                    goto _continue_loop_;
+                }
+                break;
             }
             case HUB_TARGET_MEM:{
+#if IOT_HUB_MEM_CTL
                 if (op != HUB_OP_READ || in_len == 0U) {
                     DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_MEM: no accept none read operation %d\r\n", op);
-                    // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
                 }
@@ -973,18 +1150,22 @@ static VOID worker_thread_entry(ULONG arg)
                     }
                 }
                 break;
-            }
-            default: {
-                DEBUG_DUMP(IOT_LOG_ERR, "Unknown target %d\r\n", target);
+#else
+            DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_MEM: Not Support operation %d\r\n", op);
+            if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+            goto _continue_loop_;
+            break;
+#endif
+        }
+            default:{
+                DEBUG_DUMP(IOT_LOG_ERR, "worker_thread_entry: Unknown target %d\r\n", target);
                 if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                 goto _continue_loop_;
-                break;
             }
         }
         if (op != HUB_OP_READ) {
             hub_sdram_free_rx((void*)cmd, rx_total);
         }
-
         if (!tx_frame_ptr) {
             DEBUG_DUMP(IOT_LOG_ERR, "worker_thread_entry: tx_frame_ptr is NULL\r\n");
             goto _continue_loop_;

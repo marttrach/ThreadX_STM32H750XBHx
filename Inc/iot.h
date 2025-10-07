@@ -14,9 +14,19 @@
 /* TEST SDRAM SMALL QUICK MODE */
 #define TEST_SMALL_SDRAM      0
 
+/* THREAD 10s show RTC test */
+#define IOT_HUB_RTC_TEST      1
+
 /* Open IOT_HUB_GPIO */
 #define IOT_HUB_GPIO          0
+#define IOT_HUB_ADC           0
+#define IOT_HUB_PWM           0
+#define IOT_HUB_DAC           0
 #define IOT_HUB_CAN           0
+#define IOT_HUB_I2C           0
+#define IOT_HUB_WIFI          0
+#define IOT_HUB_DMA_UART      0
+#define IOT_HUB_MEM_CTL       0
 
 /* SDRAM */
 #define SDRAM_START_ADDRESS 0xC0000000

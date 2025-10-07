@@ -139,6 +139,59 @@ int __attribute__((optimize("O0"))) sdram_test(int fast) {
 
     return 0;
 }
+
+void RTC_SetDateTime(RTC_DateTypeDef *sdate, RTC_TimeTypeDef *stime)
+{
+  if(HAL_RTC_SetDate(&hrtc, sdate, RTC_FORMAT_BCD) != HAL_OK) Error_Handler();
+  if(HAL_RTC_SetTime(&hrtc, stime, RTC_FORMAT_BCD) != HAL_OK) Error_Handler();
+}
+
+void RTC_SetDefaultDateTime()
+{
+  RTC_DateTypeDef  sdate;
+  RTC_TimeTypeDef  stime;
+  HAL_RTC_GetTime(&hrtc, &stime, RTC_FORMAT_BCD);
+  HAL_RTC_GetDate(&hrtc, &sdate, RTC_FORMAT_BCD);
+
+  /*##-1- Configure the Date #################################################*/
+  /* Set Date: Tuesday Nov 7th 2025 */
+  sdate.Year = 0x25;
+  sdate.Month = RTC_MONTH_NOVEMBER;
+  sdate.Date = 0x07;
+  sdate.WeekDay = RTC_WEEKDAY_TUESDAY;
+
+  /*##-2- Configure the Time #################################################*/
+  /* Set Time: 10:30:00 */
+  stime.Hours = 0x10;
+  stime.Minutes = 0x30;
+  stime.Seconds = 0x00;
+  stime.TimeFormat = RTC_HOURFORMAT12_AM;
+  stime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE ;
+  stime.StoreOperation = RTC_STOREOPERATION_RESET;
+  RTC_SetDateTime(&sdate, &stime);
+  DEBUG_DUMP(IOT_LOG_DEBUG, "Setting DateTime!!!!!!!!!!!!!\r\n");
+  HAL_PWR_EnableBkUpAccess();
+  HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, 0x32F2);
+  __HAL_RCC_BKPRAM_CLK_ENABLE();
+  HAL_PWR_EnableBkUpReg();
+  HAL_PWR_DisableBkUpAccess();
+}
+
+void RTC_GetDateTime(RTC_DateTypeDef *sdatestructureget, RTC_TimeTypeDef *stimestructureget)
+{
+  HAL_PWR_EnableBkUpAccess();
+  HAL_RTC_GetTime(&hrtc, stimestructureget, RTC_FORMAT_BIN);
+  HAL_RTC_GetDate(&hrtc, sdatestructureget, RTC_FORMAT_BIN);
+}
+
+void RTC_ShowDateTime(void)
+{
+  RTC_DateTypeDef sdatestructureget;
+  RTC_TimeTypeDef stimestructureget;
+  RTC_GetDateTime(&sdatestructureget, &stimestructureget);
+  /* Display time Format : hh:mm:ss */
+  DEBUG_DUMP(IOT_LOG_INFO, "%.2d-%.2d-20%.2d %02d:%02d:%02d\r\n", sdatestructureget.Month, sdatestructureget.Date, sdatestructureget.Year, stimestructureget.Hours, stimestructureget.Minutes, stimestructureget.Seconds);
+}
 /* USER CODE END 0 */
 
 /**
@@ -198,7 +251,7 @@ int main(void)
   // MX_IWDG1_Init(); //Maybe there's no need to auto restart.
   // MX_LPTIM1_Init();
   // MX_RNG_Init();
-  // MX_RTC_Init();
+  MX_RTC_Init();
   // MX_SDMMC2_SD_Init();
   MX_SDMMC1_SD_Init();
   MX_SPI1_Init();
@@ -217,6 +270,9 @@ int main(void)
   /* SDRAM test */
   sdram_test(0); 
 #endif
+
+  RTC_SetDefaultDateTime();
+  RTC_ShowDateTime();
   /* USER CODE END 2 */
 
   /**

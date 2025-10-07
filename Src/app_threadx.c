@@ -29,6 +29,7 @@
 /* USER CODE BEGIN Includes */
 #include "i2c_hub.h"
 #include "sd_upgrade.h"
+#include "main.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -38,7 +39,14 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#if IOT_HUB_RTC_TEST
+#define RTC_THREAD_STACK_SIZE     256U
+#define RTC_THREAD_PRIO           14
+#define RTC_THREAD_PREEMPTION_THRESHOLD  RTC_THREAD_PRIO
+#define RTC_THREAD_TIME_SLICE     TX_NO_TIME_SLICE
+#define RTC_THREAD_AUTO_START     TX_DONT_START
+#define RTC_THREAD_INTERVAL_TICKS (10U * TX_TIMER_TICKS_PER_SECOND)
+#endif
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -52,12 +60,14 @@ TX_SEMAPHORE tx_app_semaphore;
 TX_MUTEX tx_app_mutex;
 TX_QUEUE tx_app_msg_queue;
 /* USER CODE BEGIN PV */
-
+#if IOT_HUB_RTC_TEST
+TX_THREAD rtc_datetime_thread;
+#endif
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
-
+static void rtc_datetime_thread_entry(ULONG thread_input);
 /* USER CODE END PFP */
 
 /**
@@ -113,6 +123,20 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   }
 
   /* USER CODE BEGIN App_ThreadX_Init */
+#if IOT_HUB_RTC_TEST
+  if (tx_byte_allocate(byte_pool, (VOID **) &pointer,
+                       RTC_THREAD_STACK_SIZE, TX_NO_WAIT) != TX_SUCCESS)
+  {
+    return TX_POOL_ERROR;
+  }
+
+  if (tx_thread_create(&rtc_datetime_thread, "rtc datetime thread", rtc_datetime_thread_entry, 0,
+                       pointer, RTC_THREAD_STACK_SIZE, RTC_THREAD_PRIO, RTC_THREAD_PREEMPTION_THRESHOLD,
+                       RTC_THREAD_TIME_SLICE, RTC_THREAD_AUTO_START) != TX_SUCCESS)
+  {
+    return TX_THREAD_ERROR;
+  }
+#endif
 
   /* USER CODE END App_ThreadX_Init */
 
@@ -205,5 +229,16 @@ ULONG App_ThreadX_LowPower_Timer_Adjust(void)
 }
 
 /* USER CODE BEGIN 2 */
+#if IOT_HUB_RTC_TEST
+static void rtc_datetime_thread_entry(ULONG thread_input)
+{
+  (void)thread_input;
 
+  for (;;)
+  {
+    RTC_ShowDateTime();
+    tx_thread_sleep(RTC_THREAD_INTERVAL_TICKS);
+  }
+}
+#endif
 /* USER CODE END 2 */

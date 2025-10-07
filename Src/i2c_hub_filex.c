@@ -9,10 +9,6 @@
 #include "app_filex.h"
 #include "iot.h"
 
-#ifndef FX_MAXIMUM_PATH
-#define FX_MAXIMUM_PATH 128
-#endif
-
 #define PATH_BUFFER_LEN   FX_MAXIMUM_PATH
 #define ENTRY_NAME_LEN    FX_MAX_LONG_NAME_LEN
 #define IO_CHUNK_SIZE     65536U
@@ -458,16 +454,11 @@ UINT FX_ReadFile(const char *filename, char *buf, uint32_t size, uint32_t *bytes
 
     ULONG request = size;
     if (request == 0U) {
-        st = fx_file_seek(&file, FX_SEEK_END);
-        if (st != FX_SUCCESS) {
-            fx_file_close(&file);
-            return st;
-        }
-        request = file.fx_file_current_file_size;
-        st = fx_file_seek(&file, 0U);
-        if (st != FX_SUCCESS) {
-            fx_file_close(&file);
-            return st;
+        ULONG64 file_size = file.fx_file_current_file_size;
+        if (file_size > 0xFFFFFFFFULL) {
+            request = 0xFFFFFFFFUL;
+        } else {
+            request = (ULONG)file_size;
         }
     }
 
@@ -498,9 +489,91 @@ UINT FX_ReadFile(const char *filename, char *buf, uint32_t size, uint32_t *bytes
     return st;
 }
 
-UINT FX_WriteFile(const char *filename, const char *buf, uint32_t size)
+UINT FX_WriteFile(const char *filename, const char *buf, uint32_t size, FX_WRITE_MODE mode)
 {
     if (!buf) {
+        return FX_PTR_ERROR;
+    }
+
+    if ((mode != FX_WRITE_MODE_NEW) && (mode != FX_WRITE_MODE_APPEND)) {
+        return FX_INVALID_OPTION;
+    }
+
+    UINT st = is_filex_mount();
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    CHAR abs_path[PATH_BUFFER_LEN];
+    st = make_absolute_path(filename, abs_path, sizeof(abs_path));
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    CHAR dir[PATH_BUFFER_LEN];
+    CHAR base[ENTRY_NAME_LEN];
+    st = path_split(abs_path, dir, sizeof(dir), base, sizeof(base));
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    st = set_cwd(&sdio_disk, dir);
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    UINT existed = 0U;
+    UINT create_st = fx_file_create(&sdio_disk, base);
+    if (create_st == FX_ALREADY_CREATED) {
+        existed = 1U;
+    } else if (create_st != FX_SUCCESS) {
+        return create_st;
+    }
+
+    FX_FILE file;
+    st = fx_file_open(&sdio_disk, &file, base, FX_OPEN_FOR_WRITE);
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    if (mode == FX_WRITE_MODE_APPEND) {
+        ULONG64 end_pos = file.fx_file_current_file_size;
+        st = fx_file_extended_seek(&file, end_pos);
+        if (st != FX_SUCCESS) {
+            fx_file_close(&file);
+            return st;
+        }
+    } else if (existed) {
+        st = fx_file_truncate(&file, 0U);
+        if (st != FX_SUCCESS) {
+            fx_file_close(&file);
+            return st;
+        }
+    }
+
+    ULONG written_total = 0U;
+    while (written_total < size) {
+        ULONG chunk = size - written_total;
+        if (chunk > IO_CHUNK_SIZE) {
+            chunk = IO_CHUNK_SIZE;
+        }
+
+        st = fx_file_write(&file, (VOID *)(buf + written_total), chunk);
+        if (st != FX_SUCCESS) {
+            fx_file_close(&file);
+            return st;
+        }
+        written_total += chunk;
+    }
+
+    fx_file_close(&file);
+    (void)fx_media_flush(&sdio_disk);
+    return FX_SUCCESS;
+}
+
+UINT FX_DeleteFile(const char *filename)
+{
+    if (!filename) {
         return FX_PTR_ERROR;
     }
 
@@ -527,41 +600,11 @@ UINT FX_WriteFile(const char *filename, const char *buf, uint32_t size)
         return st;
     }
 
-    UINT create_st = fx_file_create(&sdio_disk, base);
-    if (create_st != FX_SUCCESS && create_st != FX_ALREADY_CREATED) {
-        return create_st;
+    st = fx_file_delete(&sdio_disk, base);
+    if (st == FX_SUCCESS) {
+        (void)fx_media_flush(&sdio_disk);
     }
-
-    FX_FILE file;
-    st = fx_file_open(&sdio_disk, &file, base, FX_OPEN_FOR_WRITE);
-    if (st != FX_SUCCESS) {
-        return st;
-    }
-
-    st = fx_file_truncate(&file, 0U);
-    if (st != FX_SUCCESS) {
-        fx_file_close(&file);
-        return st;
-    }
-
-    ULONG written_total = 0U;
-    while (written_total < size) {
-        ULONG chunk = size - written_total;
-        if (chunk > IO_CHUNK_SIZE) {
-            chunk = IO_CHUNK_SIZE;
-        }
-
-        st = fx_file_write(&file, (VOID *)(buf + written_total), chunk);
-        if (st != FX_SUCCESS) {
-            fx_file_close(&file);
-            return st;
-        }
-        written_total += chunk;
-    }
-
-    fx_file_close(&file);
-    (void)fx_media_flush(&sdio_disk);
-    return FX_SUCCESS;
+    return st;
 }
 
 UINT FX_ListDir(const char *path)
@@ -577,6 +620,72 @@ UINT FX_ListDir(const char *path)
     }
     DEBUG_DUMP(IOT_LOG_INFO, "Listing '%s'\r\n", abs_path);
     return list_dir_recursive(&sdio_disk, abs_path, 0U, NULL);
+}
+
+UINT FX_ListDirSimple(const char *path)
+{
+    UINT st = is_filex_mount();
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    CHAR abs_path[PATH_BUFFER_LEN];
+    st = make_absolute_path(path ? path : "/", abs_path, sizeof(abs_path));
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    FX_LOCAL_PATH saved_path;
+    UINT path_active = 0U;
+    st = fx_directory_local_path_set(&sdio_disk, &saved_path, abs_path);
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+    path_active = 1U;
+
+    CHAR name[ENTRY_NAME_LEN];
+    UINT attr;
+    ULONG size;
+    UINT year, month, day, hour, minute, second;
+    UINT entry_count = 0U;
+
+    st = fx_directory_first_full_entry_find(&sdio_disk, name, &attr, &size,
+                                            &year, &month, &day, &hour, &minute, &second);
+    while (st == FX_SUCCESS) {
+        if (!is_dot_entry(name)) {
+            ++entry_count;
+            if (attr & FX_DIRECTORY) {
+                DEBUG_DUMP(IOT_LOG_INFO, "[DIR ] %s%s%s\r\n",
+                           abs_path,
+                           (strcmp(abs_path, "/") == 0) ? "" : "/",
+                           name);
+            } else {
+                DEBUG_DUMP(IOT_LOG_INFO, "[FILE] %s%s%s (%lu bytes)\r\n",
+                           abs_path,
+                           (strcmp(abs_path, "/") == 0) ? "" : "/",
+                           name,
+                           (unsigned long)size);
+            }
+        }
+        st = fx_directory_next_full_entry_find(&sdio_disk, name, &attr, &size,
+                                               &year, &month, &day, &hour, &minute, &second);
+    }
+
+    if (path_active) {
+        fx_directory_local_path_restore(&sdio_disk, &saved_path);
+        fx_directory_local_path_clear(&sdio_disk);
+    }
+
+    if (st == FX_NO_MORE_ENTRIES) {
+        st = FX_SUCCESS;
+    }
+
+    if (st == FX_SUCCESS) {
+        DEBUG_DUMP(IOT_LOG_INFO, "HUB_TARGET_SD: '%s' entry count=%u\r\n",
+                   abs_path,
+                   entry_count);
+    }
+    return st;
 }
 
 UINT FX_RemoveDir(const char *path, const char *except, UINT recursive)

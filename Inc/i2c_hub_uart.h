@@ -1,6 +1,8 @@
 #ifndef I2C_HUB_UART_H
 #define I2C_HUB_UART_H
 
+#if IOT_HUB_DMA_UART
+
 #include "usart.h"
 #include "i2c_hub.h"
 #include "tx_api.h"
@@ -73,5 +75,5 @@ void uart7_thread_start(void);
 void uart8_thread_start(void);
 int uart7_post_read(uint16_t len, uint32_t data_addr);
 int uart8_post_read(uint16_t len, uint32_t data_addr);
-
+#endif /* IOT_HUB_DMA_UART */
 #endif /* I2C_HUB_UART_H */
