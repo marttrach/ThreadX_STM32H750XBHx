@@ -150,7 +150,7 @@
 
 /* Defined, local path logic is disabled.  */
 
-#define FX_NO_LOCAL_PATH
+/* #define FX_NO_LOCAL_PATH */
 
 /* Defined, FileX is built without update to the time parameters.  */
 

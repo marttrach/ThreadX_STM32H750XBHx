@@ -860,27 +860,9 @@ static VOID worker_thread_entry(ULONG arg)
             }
 #endif
             case HUB_TARGET_SD:{
-                if (op == HUB_OP_CONFIG) {
-                    tx_thread_resume(&fx_app_thread);
-                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
-                    goto _continue_loop_;
-                } else if (op == HUB_OP_READ) {
-                    tx_frame_ptr = i2c_hub_filex_helper(tx_frame_ptr, cmd);
-                    if (!tx_frame_ptr) {
-                        hub_send_tx_frame(s_err_mem, sizeof(s_err_mem));
-                        goto _continue_loop_;
-                    } else {
-                        /* temp reply */
-                        hub_send_tx_frame(s_rsp_ok, sizeof(s_rsp_ok));
-                        /* temp reply */
-                        goto _continue_loop_;
-                    }
-                } else {
-                    DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_CAN: Unknown operation %d\r\n", op);
-                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
-                    goto _continue_loop_;
-                }
-                break;
+                DEBUG_DUMP(IOT_LOG_WARNING, "HUB_TARGET_SD: FileX interface disabled\r\n");
+                if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                goto _continue_loop_;
             }
             case HUB_TARGET_MEM:{
                 if (op != HUB_OP_READ || in_len == 0U) {

@@ -40,7 +40,7 @@
 /* Main thread stack size */
 #define FX_APP_THREAD_STACK_SIZE         8192
 /* Main thread priority */
-#define FX_APP_THREAD_PRIO               9
+#define FX_APP_THREAD_PRIO               13
 
 /* USER CODE BEGIN PD */
 

@@ -21,6 +21,13 @@
         "i2c_hub_filex.h": "c",
         "iot.h": "c",
         "app_azure_rtos_config.h": "c",
-        "i2c_hub_modbus_server.h": "c"
+        "i2c_hub_modbus_server.h": "c",
+        "stdlib.h": "c",
+        "diskio.h": "c",
+        "ff.h": "c",
+        "rtc.h": "c",
+        "sd_upgrade.h": "c",
+        "sd_diskio.h": "c",
+        "fx_api.h": "c"
     }
 }

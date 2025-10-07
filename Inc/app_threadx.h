@@ -51,7 +51,7 @@ extern "C" {
 #define TX_APP_SINGLE_MSG_SIZE                  10
 #define TX_APP_MSG_QUEUE_NB_MSG                 4
 #define TX_APP_MSG_QUEUE_FULL_SIZE              TX_APP_SINGLE_MSG_SIZE * TX_APP_MSG_QUEUE_NB_MSG
-#define TX_APP_STACK_SIZE                       2048
+#define TX_APP_STACK_SIZE                       4096
 #define TX_APP_THREAD_PRIO                      10
 /* USER CODE BEGIN PD */
 

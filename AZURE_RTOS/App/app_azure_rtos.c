@@ -225,7 +225,6 @@ VOID tx_application_define(VOID *first_unused_memory)
   
   UCHAR *tx_byte_pool_buffer = (UCHAR*)&_tx_heap_start;
   UCHAR *fx_byte_pool_buffer = (UCHAR*)&_tx_heap_start + TX_APP_MEM_POOL_SIZE;
-  UCHAR *nx_byte_pool_buffer = fx_byte_pool_buffer + FX_APP_MEM_POOL_SIZE;
 
   if (tx_byte_pool_create(&tx_app_byte_pool, "Tx App memory pool", tx_byte_pool_buffer, TX_APP_MEM_POOL_SIZE) != TX_SUCCESS)
   {

@@ -28,6 +28,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "i2c_hub.h"
+#include "sd_upgrade.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -126,6 +127,9 @@ void tx_app_thread_entry(ULONG thread_input)
 {
   /* USER CODE BEGIN tx_app_thread_entry */  
   DEBUG_DUMP(IOT_LOG_INFO, "IOT-DUALMCU Booting Done.\r\n");
+#if IOT_EXTERNAL_SD && IOT_eSD_UPDATE
+  update_loader(IOT_eSD_LOADER_FILENAME, IOT_eSD_LOADER_FILENAME_BAK);
+#endif
   iot_hub_start();
   while(1) { 
     tx_thread_sleep(TX_TIMER_TICKS_PER_SECOND);

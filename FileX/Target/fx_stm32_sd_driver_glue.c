@@ -14,6 +14,7 @@
 /* USER CODE END 1 */
 
 #include "fx_stm32_sd_driver.h"
+#include "sdmmc.h"
 
 TX_SEMAPHORE sd_tx_semaphore;
 TX_SEMAPHORE sd_rx_semaphore;

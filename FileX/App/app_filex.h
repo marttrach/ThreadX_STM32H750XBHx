@@ -60,6 +60,9 @@ extern "C" {
 UINT MX_FileX_Init(VOID *memory_ptr);
 /* USER CODE BEGIN EFP */
 
+extern FX_MEDIA sdio_disk;
+extern uint32_t fx_sd_media_memory[FX_STM32_SD_DEFAULT_SECTOR_SIZE / sizeof(uint32_t)];
+
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

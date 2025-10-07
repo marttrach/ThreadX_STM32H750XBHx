@@ -105,6 +105,8 @@ set(MX_Application_Src
     # ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/bsp_iot_sdram.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/modbus_rtu_client.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/modbus_formosa.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/sd_upgrade.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Src/iot_fw_upgrade.c
 )
 
 # STM32 HAL/LL Drivers

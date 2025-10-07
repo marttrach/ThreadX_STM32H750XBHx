@@ -56,7 +56,8 @@ ENTRY(Reset_Handler)
 MEMORY
 {
 DTCMRAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 128K
-RAM (xrw)      : ORIGIN = 0x24000000, LENGTH = 512K
+RAM (xrw)      : ORIGIN = 0x24000000, LENGTH = 509K
+RAM_LOADER_UP (xrw)      : ORIGIN = 0x2407F400, LENGTH = 3K
 RAM_D2 (xrw)      : ORIGIN = 0x30000000, LENGTH = 288K
 RAM_D3 (xrw)      : ORIGIN = 0x38000000, LENGTH = 64K
 ITCMRAM (xrw)      : ORIGIN = 0x00000000, LENGTH = 64K
@@ -76,8 +77,10 @@ SECTIONS
   .isr_vector :
   {
     . = ALIGN(4);
+    _sisr_vector = .;
     KEEP(*(.isr_vector)) /* Startup code */
     . = ALIGN(4);
+    _eisr_vector = .;
   } >FLASH
 
   /* The program code and other data goes into FLASH */
@@ -257,7 +260,18 @@ SECTIONS
     . = ALIGN(8);
   } >DTCMRAM
 
+  _upgrade_section = LOADADDR(.upgrade_section);
 
+  .upgrade_section :
+  {
+    . = ALIGN(4);
+    _supgrade_section = .;        /* create a global symbol at upgrade section start */
+    _new_vector = .;
+    . = SIZEOF(.isr_vector);
+    *(.upgrade_section*)           /* .upgrade_section sections */
+    . = ALIGN(4);
+    _eupgrade_section = .;        /* define a global symbol at upgrade section end */
+  } > RAM_LOADER_UP AT> FLASH 
 
   /* Remove information from the standard libraries */
   /DISCARD/ :
@@ -267,4 +281,5 @@ SECTIONS
     libgcc.a:* ( * )
   }
 
+  .ARM.attributes 0 : { *(.ARM.attributes) }
 }

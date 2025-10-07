@@ -1,479 +1,698 @@
 #include <stdio.h>
-#include <stdarg.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <ctype.h>
+
 #include "i2c_hub_filex.h"
-#include "i2c_hub_mem.h"
-#include "stm32h7xx_hal.h"
 #include "fx_stm32_sd_driver.h"
 #include "app_filex.h"
 #include "iot.h"
 
-extern FX_MEDIA sdio_disk;
-extern uint32_t fx_sd_media_memory;
+#ifndef FX_MAXIMUM_PATH
+#define FX_MAXIMUM_PATH 128
+#endif
 
-static volatile UINT  g_sd_mounted = 0;
-static volatile UINT  g_fx_inited  = 1;
+#define PATH_BUFFER_LEN   FX_MAXIMUM_PATH
+#define ENTRY_NAME_LEN    FX_MAX_LONG_NAME_LEN
+#define IO_CHUNK_SIZE     65536U
 
-static void u64_to_str10(char *out, size_t outsz, uint64_t v)
+static volatile UINT g_sd_mounted = 0U;
+static volatile UINT g_fx_initialized = 0U;
+
+static inline int media_is_open(const FX_MEDIA *m)
 {
-    if (!out || outsz == 0) return;
-    char tmp[32];
-    int i = 0;
-    if (v == 0) { out[0] = '0'; out[1] = '\0'; return; }
-    while (v && i < (int)sizeof(tmp)) {
-        tmp[i++] = (char)('0' + (v % 10));
-        v /= 10;
-    }
-    size_t n = (size_t)i;
-    if (n >= outsz) n = outsz - 1;
-    for (size_t j = 0; j < n; ++j) out[j] = tmp[n - 1 - j];
-    out[n] = '\0';
+    return (m && m->fx_media_id == FX_MEDIA_ID);
 }
 
-static void human_size_u64(char *out, size_t outsz, uint64_t bytes)
+static UINT ensure_fx_initialized(void)
 {
-    if (!out || outsz == 0) return;
-    static const char *unit[] = {"B","KB","MB","GB","TB","PB"};
-    int u = 0;
-    while (u < 5 && bytes >= (1ULL << (10 * (u + 1)))) u++;
-    uint64_t denom = 1ULL << (10 * u);
-    uint64_t whole = bytes / denom;
-    uint64_t frac  = ((bytes % denom) * 100) / denom;
-    char wbuf[24]; u64_to_str10(wbuf, sizeof(wbuf), whole);
-    int n = snprintf(out, outsz, "%s.%02lu %s", wbuf, (unsigned long)frac, unit[u]);
-    if (n < 0) out[0] = '\0';
-    else if ((size_t)n >= outsz) out[outsz - 1] = '\0';
+    if (!g_fx_initialized) {
+        fx_system_initialize();
+        g_fx_initialized = 1U;
+    }
+    return FX_SUCCESS;
+}
+
+static UINT ensure_sd_media_open(void)
+{
+    UINT st = ensure_fx_initialized();
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    if (g_sd_mounted && media_is_open(&sdio_disk)) {
+        return FX_SUCCESS;
+    }
+
+    st = fx_media_open(&sdio_disk,
+                       (CHAR *)FX_SD_VOLUME_NAME,
+                       fx_stm32_sd_driver,
+                       FX_NULL,
+                       (VOID *)fx_sd_media_memory,
+                       sizeof(fx_sd_media_memory));
+    if (st == FX_SUCCESS) {
+        g_sd_mounted = 1U;
+    } else {
+        DEBUG_DUMP(IOT_LOG_ERR, "FILEX media open failed: 0x%02X\r\n", st);
+    }
+    return st;
+}
+
+UINT is_filex_mount(void)
+{
+    return ensure_sd_media_open();
+}
+
+UINT is_hub_filex_unmount(void)
+{
+    if (!media_is_open(&sdio_disk)) {
+        g_sd_mounted = 0U;
+        return FX_SUCCESS;
+    }
+    UINT st = fx_media_close(&sdio_disk);
+    if (st == FX_SUCCESS) {
+        g_sd_mounted = 0U;
+        DEBUG_DUMP(IOT_LOG_DEBUG, "FILEX media '%s' closed\r\n", FX_SD_VOLUME_NAME);
+    }
+    return st;
+}
+
+static UINT make_absolute_path(const char *input, CHAR *out, size_t outsz)
+{
+    if (!input || !out || outsz == 0U) {
+        return FX_PTR_ERROR;
+    }
+
+    size_t len = strlen(input);
+    if (len + 2U >= outsz) {
+        return FX_INVALID_NAME;
+    }
+
+    size_t pos = 0U;
+    if (input[0] != '/' && input[0] != '\\') {
+        out[pos++] = '/';
+    }
+
+    for (size_t i = 0U; i < len && pos < outsz - 1U; ++i) {
+        CHAR c = (input[i] == '\\') ? '/' : input[i];
+        if (pos > 0U && c == '/' && out[pos - 1U] == '/') {
+            continue; /* collapse duplicate slashes */
+        }
+        out[pos++] = c;
+    }
+    if (pos == 0U) {
+        out[pos++] = '/';
+    }
+    if (pos > 1U && out[pos - 1U] == '/') {
+        --pos;
+    }
+    out[pos] = '\0';
+    return FX_SUCCESS;
+}
+
+static UINT path_split(const char *abspath, CHAR *dir, size_t dirsz, CHAR *base, size_t basesz)
+{
+    if (!abspath || abspath[0] != '/') {
+        return FX_INVALID_NAME;
+    }
+
+    size_t len = strlen(abspath);
+    if (len == 1U) {
+        if (dir && dirsz >= 2U) {
+            dir[0] = '/';
+            dir[1] = '\0';
+        }
+        if (base && basesz > 0U) {
+            base[0] = '\0';
+        }
+        return FX_SUCCESS;
+    }
+
+    while (len > 1U && abspath[len - 1U] == '/') {
+        --len;
+    }
+
+    size_t sep = len;
+    while (sep > 0U && abspath[sep - 1U] != '/') {
+        --sep;
+    }
+
+    size_t dirlen = (sep <= 1U) ? 1U : (sep - 1U);
+    size_t baselen = len - sep;
+
+    if (dir && dirsz > 0U) {
+        if (dirlen >= dirsz) {
+            return FX_INVALID_NAME;
+        }
+        memcpy(dir, abspath, dirlen);
+        dir[dirlen] = '\0';
+    }
+
+    if (base && basesz > 0U) {
+        if (baselen == 0U || baselen >= basesz) {
+            return FX_INVALID_NAME;
+        }
+        memcpy(base, abspath + sep, baselen);
+        base[baselen] = '\0';
+    }
+
+    return FX_SUCCESS;
 }
 
 static UINT set_cwd(FX_MEDIA *m, const char *path)
 {
+    if (!m || !path) {
+        return FX_PTR_ERROR;
+    }
+
     UINT st = fx_directory_default_set(m, "/");
-    if (st == FX_INVALID_PATH) {
-        if (!path || path[0]=='\0' || (path[0]=='/' && path[1]=='\0')) return FX_SUCCESS;
-        return FX_INVALID_PATH;
-    }
-    if (st != FX_SUCCESS) return st;
-
-    st = fx_directory_default_set(m, "/");
-    if (st != FX_SUCCESS) return st;
-
-    if (!path || path[0] == '\0' || (path[0]=='/' && path[1]=='\0')) {
-        return FX_SUCCESS;
-    }
-
-    const char *p = path;
-    while (*p == '/') p++;
-
-    CHAR seg[256];
-    while (*p) {
-        size_t len = 0;
-        while (p[len] && p[len] != '/') len++;
-        if (len == 0) { p++; continue; }
-        if (len >= sizeof(seg)) return FX_INVALID_NAME;
-
-        memcpy(seg, p, len);
-        seg[len] = '\0';
-
-        st = fx_directory_default_set(m, seg);
-        if (st != FX_SUCCESS) return st;
-
-        p += len;
-        while (*p == '/') p++;
-    }
-    return FX_SUCCESS;
-}
-
-static UINT ensure_local_path(FX_MEDIA *m)
-{
-    static UINT ready = 0;
-    static FX_LOCAL_PATH local;
-    if (ready) return FX_SUCCESS;
-    UINT st = fx_directory_local_path_set(m, &local, FX_NULL);
-    if (st == FX_SUCCESS) ready = 1;
-    return st;
-}
-
-static const char* fs_type_str(const FX_MEDIA *m)
-{
-    UINT t = m->fx_media_FAT_type;
-#ifdef FX_exFAT
-    if (t == FX_exFAT) return "exFAT";
-#endif
-#ifdef FX_FAT32
-    if (t == FX_FAT32) return "FAT32";
-#endif
-#ifdef FX_FAT16
-    if (t == FX_FAT16) return "FAT16";
-#endif
-#ifdef FX_FAT12
-    if (t == FX_FAT12) return "FAT12";
-#endif
-    if (t == 32) return "FAT32";
-    if (t == 16) return "FAT16";
-    if (t == 12) return "FAT12";
-    return "FAT";
-}
-
-static int ieq(const char *a, const char *b)
-{
-    unsigned char ca, cb;
-    while (*a && *b) {
-        ca = (unsigned char)*a++; cb = (unsigned char)*b++;
-        if (ca >= 'A' && ca <= 'Z') ca = (unsigned char)(ca - 'A' + 'a');
-        if (cb >= 'A' && cb <= 'Z') cb = (unsigned char)(cb - 'A' + 'a');
-        if (ca != cb) return 0;
-    }
-    return *a == '\0' && *b == '\0';
-}
-
-static int should_skip_descend(const char *name, UINT attr)
-{
-    if (attr & FX_VOLUME)  return 1;
-    if (attr & FX_SYSTEM)  return 1;
-    if (attr & FX_HIDDEN)  return 1;
-    if (ieq(name, "System Volume Information")) return 1;
-    if (ieq(name, "$RECYCLE.BIN"))             return 1;
-    return 0;
-}
-
-static UINT fs_get_space(FX_MEDIA *m, unsigned long long *total, unsigned long long *freeb)
-{
-    if (!m || !total || !freeb) return FX_PTR_ERROR;
-
-    uint64_t total_sectors = (uint64_t)m->fx_media_total_sectors;
-    uint64_t bps           = (uint64_t)m->fx_media_bytes_per_sector;
-
-    *total = 0;
-    *freeb = 0;
-
-    {
-        char ts[32], bpss[32];
-        u64_to_str10(ts, sizeof(ts), total_sectors);
-        u64_to_str10(bpss, sizeof(bpss), bps);
-    }
-    if (bps != 0) *total = (unsigned long long)(total_sectors * bps);
-#ifdef FX_exFAT
-    {
-        ULONG64 free64 = 0;
-        UINT st = fx_media_extended_space_available(m, &free64);
-        if (st == FX_SUCCESS) {
-            *freeb = (unsigned long long)free64;
-            return FX_SUCCESS;
-        }
-    }
-#endif
-    {
-        ULONG free32 = 0;
-        UINT st = fx_media_space_available(m, &free32);
-        if (st != FX_SUCCESS) return st;
-        *freeb = (bps != 0) ? (unsigned long long)free32 * (unsigned long long)bps
-                            : (unsigned long long)free32;
-        return FX_SUCCESS;
-    }
-}
-
-static void wr_init(wr_t *w, char *buf, size_t cap)
-{
-    w->buf = buf; w->cap = cap; w->used = 0; w->truncated = 0;
-    if (cap) buf[0] = '\0';
-}
-
-static void wr_puts(wr_t *w, const char *s)
-{
-    if (w->used >= w->cap) { w->truncated = 1; return; }
-    size_t sl = strlen(s);
-    if (sl > w->cap - w->used) { sl = w->cap - w->used; w->truncated = 1; }
-    memcpy(w->buf + w->used, s, sl);
-    w->used += sl;
-    if (w->used < w->cap) w->buf[w->used] = '\0';
-}
-
-static void wr_printf(wr_t *w, const char *fmt, ...)
-{
-    if (w->used >= w->cap) { w->truncated = 1; return; }
-    va_list ap; va_start(ap, fmt);
-    int n = vsnprintf(w->buf + w->used, w->cap - w->used, fmt, ap);
-    va_end(ap);
-    if (n <= 0) return;
-    if ((size_t)n > w->cap - w->used) { w->used = w->cap; w->truncated = 1; return; }
-    w->used += (size_t)n;
-}
-
-static int is_dot_or_dotdot(const char *name)
-{
-    return ((name[0]=='.' && name[1]=='\0') ||
-            (name[0]=='.' && name[1]=='.' && name[2]=='\0'));
-}
-
-static void print_indent(wr_t *w, int depth)
-{
-    for (int i = 0; i < depth; ++i) wr_puts(w, "  ");
-}
-
-void i2c_hub_filex_init(void)
-{
-    if (!g_fx_inited) {
-        fx_system_initialize();
-        g_fx_inited = 1;
-    }
-}
-
-UINT i2c_hub_filex_mount(void)
-{
-    if (!g_fx_inited) i2c_hub_filex_init();
-    if (g_sd_mounted) return FX_SUCCESS;
-    UINT st = FX_SUCCESS;
-    if (st == FX_SUCCESS) g_sd_mounted = 1;
-    return st;
-}
-
-UINT i2c_hub_filex_unmount(void)
-{
-    if (!g_sd_mounted) return FX_SUCCESS;
-    UINT st = fx_media_close(&sdio_disk);
-    if (st == FX_SUCCESS) g_sd_mounted = 0;
-    return st;
-}
-
-uint8_t *i2c_hub_filex_helper(uint8_t *tx_frame_ptr, const hub_cmd_t *cmd)
-{
-    const uint32_t out_len   = (uint32_t)cmd->len;
-    const uint32_t frame_len = RSP_HDR_SZ + out_len + 4;
-
-    tx_frame_ptr = (uint8_t *)hub_heap_alloc_aligned(ALIGN32(frame_len), HUB_DMA_ALIGN);
-    if (!tx_frame_ptr) return NULL;
-
-    hub_rsp_t *rsp = (hub_rsp_t *)tx_frame_ptr;
-    rsp->status    = HUB_RSP_OK;
-    rsp->reserved  = 0;
-    rsp->len       = (uint16_t)out_len;
-    rsp->data_addr = 0;
-
-    char *payload = (char *)(tx_frame_ptr + RSP_HDR_SZ);
-    wr_t w; wr_init(&w, payload, out_len);
-
-    UINT st = i2c_hub_filex_mount();
     if (st != FX_SUCCESS) {
-        wr_printf(&w, "SD mount failed: 0x%X\r\n", st);
-        goto out;
-    }
-
-    unsigned long long total=0, freeb=0, used=0;
-    st = fs_get_space(&sdio_disk, &total, &freeb);
-    if (st != FX_SUCCESS) {
-        wr_printf(&w, "Get space failed: 0x%X\r\n", st);
-        goto out;
-    }
-    used = (total >= freeb) ? (total - freeb) : 0;
-
-    char tbuf[32]={0}, ubuf[32]={0}, fbuf[32]={0};
-    human_size_u64(tbuf, sizeof(tbuf), total);
-    human_size_u64(ubuf, sizeof(ubuf), used);
-    human_size_u64(fbuf, sizeof(fbuf), freeb);
-
-    wr_printf(&w, "Format : %s\r\n", fs_type_str(&sdio_disk));
-    wr_printf(&w, "Total  : %s\r\n", tbuf);
-    wr_printf(&w, "Used   : %s\r\n", ubuf);
-    wr_printf(&w, "Free   : %s\r\n\r\n", fbuf);
-out:
-    if (w.used < out_len) memset(payload + w.used, 0, out_len - w.used);
-    uint32_t crc = iot_hub_crc32_hard(tx_frame_ptr, RSP_HDR_SZ + out_len);
-    memcpy(tx_frame_ptr + RSP_HDR_SZ + out_len, &crc, 4);
-    dcache_clean32_range(tx_frame_ptr, frame_len);
-    return tx_frame_ptr;
-}
-
-static UINT path_split(const char *abspath, CHAR *dir, size_t dirsz,
-                       CHAR *base, size_t basesz)
-{
-    if (!abspath || abspath[0] != '/') return FX_INVALID_NAME;
-
-    size_t L = strlen(abspath);
-    if (L == 1) {
-        if (dir && dirsz) { dir[0] = '/'; dir[1] = '\0'; }
-        if (base && basesz) base[0] = '\0';
-        return FX_SUCCESS;
-    }
-    while (L > 1 && abspath[L-1] == '/') L--;
-
-    size_t i = L;
-    while (i > 0 && abspath[i-1] != '/') i--;
-    size_t dlen = (i == 1) ? 1 : (i - 1);
-    size_t blen = L - i;
-
-    if (dir && dirsz) {
-        if (dlen >= dirsz) return FX_INVALID_NAME;
-        memcpy(dir, abspath, dlen);
-        dir[dlen] = '\0';
-    }
-    if (base && basesz) {
-        if (blen == 0 || blen >= basesz) return FX_INVALID_NAME;
-        memcpy(base, abspath + i, blen);
-        base[blen] = '\0';
-    }
-    return FX_SUCCESS;
-}
-
-UINT fx_mkdirs(FX_MEDIA *m, const char *absdir)
-{
-    if (!absdir || absdir[0] != '/') return FX_INVALID_NAME;
-
-    UINT st = set_cwd(m, "/");
-    if (st != FX_SUCCESS) return st;
-
-    if (absdir[1] == '\0') return FX_SUCCESS;
-
-    const char *p = absdir;
-    while (*p == '/') p++;
-
-    CHAR seg[256];
-    while (*p) {
-        size_t len = 0;
-        while (p[len] && p[len] != '/') len++;
-        if (len == 0) { p++; continue; }
-        if (len >= sizeof(seg)) return FX_INVALID_NAME;
-        memcpy(seg, p, len); seg[len] = '\0';
-
-        st = fx_directory_default_set(m, seg);
-        if (st != FX_SUCCESS) {
-            UINT st2 = fx_directory_create(m, seg);
-            if (st2 != FX_SUCCESS && st2 != FX_ALREADY_CREATED) return st2;
-            st = fx_directory_default_set(m, seg);
-            if (st != FX_SUCCESS) return st;
-        }
-        p += len;
-        while (*p == '/') p++;
-    }
-    return FX_SUCCESS;
-}
-
-UINT fx_get_file_size64(FX_MEDIA *m, const char *abspath, ULONG64 *out_size)
-{
-    if (!out_size) return FX_PTR_ERROR;
-    *out_size = 0;
-
-    CHAR dir[256], base[256];
-    UINT st = path_split(abspath, dir, sizeof(dir), base, sizeof(base));
-    if (st != FX_SUCCESS) return st;
-    st = set_cwd(m, dir);
-    if (st != FX_SUCCESS) return st;
-
-    FX_FILE f;
-    st = fx_file_open(m, &f, base, FX_OPEN_FOR_READ);
-    if (st != FX_SUCCESS) return st;
-
-#ifdef FX_ENABLE_EXFAT
-    ULONG64 size64 = 0;
-    st = fx_file_extended_best_effort_allocate(&f, 0, &size64);
-    (void)st;
-#endif
-    st = fx_file_seek(&f, FX_SEEK_END);
-    if (st == FX_SUCCESS) {
-        *out_size = (ULONG64)f.fx_file_current_file_size;
-    }
-    fx_file_close(&f);
-    return FX_SUCCESS;
-}
-
-UINT fx_read_file_to_buf(FX_MEDIA *m, const char *abspath,
-                         ULONG64 offset, UCHAR *dst, ULONG len, ULONG *out_read)
-{
-    if (!dst) return FX_PTR_ERROR;
-    if (out_read) *out_read = 0;
-
-    CHAR dir[256], base[256];
-    UINT st = path_split(abspath, dir, sizeof(dir), base, sizeof(base));
-    if (st != FX_SUCCESS) return st;
-
-    st = set_cwd(m, dir);
-    if (st != FX_SUCCESS) return st;
-
-    FX_FILE f;
-    st = fx_file_open(m, &f, base, FX_OPEN_FOR_READ);
-    if (st != FX_SUCCESS) return st;
-
-    st = fx_file_seek(&f, (ULONG)offset);
-    if (st != FX_SUCCESS) { fx_file_close(&f); return st; }
-
-    ULONG total = 0;
-    while (total < len) {
-        ULONG chunk = len - total;
-        if (chunk > 65536) chunk = 65536;
-
-        ULONG got = 0;
-        st = fx_file_read(&f, dst + total, chunk, &got);
-        if (st != FX_SUCCESS && st != FX_END_OF_FILE) { fx_file_close(&f); return st; }
-        total += got;
-        if (got == 0 || st == FX_END_OF_FILE) break;
-    }
-    fx_file_close(&f);
-    if (out_read) *out_read = total;
-    return FX_SUCCESS;
-}
-
-UINT fx_write_file_from_buf(FX_MEDIA *m, const char *abspath,
-                            ULONG64 offset, const UCHAR *src, ULONG len,
-                            ULONG *out_written, UINT create_if_missing, UINT truncate)
-{
-    if (!src) return FX_PTR_ERROR;
-    if (out_written) *out_written = 0;
-
-    CHAR dir[256], base[256];
-    UINT st = path_split(abspath, dir, sizeof(dir), base, sizeof(base));
-    if (st != FX_SUCCESS) return st;
-
-    st = fx_mkdirs(m, dir);
-    if (st != FX_SUCCESS) return st;
-
-    st = set_cwd(m, dir);
-    if (st != FX_SUCCESS) return st;
-
-    FX_FILE f;
-    st = fx_file_open(m, &f, base, FX_OPEN_FOR_WRITE);
-    if (st == FX_NOT_FOUND || st == FX_NOT_A_FILE) {
-        if (!create_if_missing) return st;
-        st = fx_file_create(m, base);
-        if (st != FX_SUCCESS && st != FX_ALREADY_CREATED) return st;
-        st = fx_file_open(m, &f, base, FX_OPEN_FOR_WRITE);
-        if (st != FX_SUCCESS) return st;
-    } else if (st != FX_SUCCESS) {
         return st;
     }
 
-    if (truncate) {
-        st = fx_file_truncate(&f, 0);
-        if (st != FX_SUCCESS) { fx_file_close(&f); return st; }
-        offset = 0;
+    if (path[0] == '/' && path[1] == '\0') {
+        return FX_SUCCESS;
     }
 
-    st = fx_file_seek(&f, (ULONG)offset);
-    if (st != FX_SUCCESS) { fx_file_close(&f); return st; }
-
-    ULONG total = 0;
-    while (total < len) {
-        ULONG chunk = len - total;
-        if (chunk > 65536) chunk = 65536;
-
-        st = fx_file_write(&f, (void*)(src + total), chunk);
-        if (st != FX_SUCCESS) { fx_file_close(&f); return st; }
-
-        total += chunk;
+    const char *cursor = path;
+    if (*cursor == '/') {
+        ++cursor;
     }
 
-    (void)fx_media_flush(m);
+    CHAR segment[ENTRY_NAME_LEN];
+    while (*cursor != '\0') {
+        size_t seglen = 0U;
+        while (cursor[seglen] != '\0' && cursor[seglen] != '/') {
+            ++seglen;
+        }
+        if (seglen > 0U) {
+            if (seglen >= sizeof(segment)) {
+                return FX_INVALID_NAME;
+            }
+            memcpy(segment, cursor, seglen);
+            segment[seglen] = '\0';
 
-    fx_file_close(&f);
-    if (out_written) *out_written = total;
+            st = fx_directory_default_set(m, segment);
+            if (st == FX_INVALID_PATH) {
+                return st;
+            }
+            if (st != FX_SUCCESS) {
+                return st;
+            }
+        }
+
+        cursor += seglen;
+        while (*cursor == '/') {
+            ++cursor;
+        }
+    }
+
     return FX_SUCCESS;
 }
 
-UINT fx_delete_file_path(FX_MEDIA *m, const char *abspath)
+static int is_dot_entry(const char *name)
 {
-    CHAR dir[256], base[256];
-    UINT st = path_split(abspath, dir, sizeof(dir), base, sizeof(base));
-    if (st != FX_SUCCESS) return st;
-    st = set_cwd(m, dir);
-    if (st != FX_SUCCESS) return st;
-    return fx_file_delete(m, base);
+    if (!name) {
+        return 0;
+    }
+    if (strcmp(name, ".") == 0) {
+        return 1;
+    }
+    if (strcmp(name, "..") == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+static int str_ieq(const char *a, const char *b)
+{
+    if (!a || !b) {
+        return 0;
+    }
+    while (*a && *b) {
+        int ca = tolower((unsigned char)*a++);
+        int cb = tolower((unsigned char)*b++);
+        if (ca != cb) {
+            return 0;
+        }
+    }
+    return (*a == '\0' && *b == '\0');
+}
+
+static int should_skip_folder(const char *name, UINT attr)
+{
+    if (!name) {
+        return 1;
+    }
+    if (attr & FX_VOLUME) {
+        return 1;
+    }
+    if (attr & FX_SYSTEM) {
+        return 1;
+    }
+    if (attr & FX_HIDDEN) {
+        return 1;
+    }
+    if (str_ieq(name, "System Volume Information")) {
+        return 1;
+    }
+    if (str_ieq(name, "$RECYCLE.BIN")) {
+        return 1;
+    }
+    return 0;
+}
+
+static UINT list_dir_recursive(FX_MEDIA *m, const char *path, UINT depth, FX_LOCAL_PATH *parent)
+{
+    FX_LOCAL_PATH current_path;
+    UINT st = fx_directory_local_path_set(m, &current_path, (CHAR *)path);
+    if (st != FX_SUCCESS) {
+        if (parent) {
+            fx_directory_local_path_restore(m, parent);
+        }
+        return st;
+    }
+
+    CHAR name[ENTRY_NAME_LEN];
+    UINT attr;
+    ULONG size;
+    UINT year, month, day, hour, minute, second;
+
+    st = fx_directory_first_full_entry_find(m, name, &attr, &size, &year, &month, &day, &hour, &minute, &second);
+    while (st == FX_SUCCESS) {
+        if (!is_dot_entry(name)) {
+            if (attr & FX_DIRECTORY) {
+                CHAR child_path[PATH_BUFFER_LEN];
+                if (snprintf(child_path, sizeof(child_path), "%s%s%s",
+                             path,
+                             (strcmp(path, "/") == 0) ? "" : "/",
+                             name) >= (int)sizeof(child_path)) {
+                    st = FX_INVALID_NAME;
+                    break;
+                }
+                DEBUG_DUMP(IOT_LOG_INFO,
+                           "%04u-%02u-%02u %02u:%02u:%02u <DIR>      %s\r\n",
+                           year, month, day, hour, minute, second,
+                           child_path);
+                if (!should_skip_folder(name, attr)) {
+                    st = list_dir_recursive(m, child_path, depth + 1U, &current_path);
+                    if (st != FX_SUCCESS) {
+                        break;
+                    }
+                }
+                st = fx_directory_local_path_restore(m, &current_path);
+                if (st != FX_SUCCESS) {
+                    break;
+                }
+            } else {
+                DEBUG_DUMP(IOT_LOG_INFO,
+                           "%04u-%02u-%02u %02u:%02u:%02u %-10lu %s%s%s\r\n",
+                           year, month, day, hour, minute, second,
+                           (unsigned long)size,
+                           path,
+                           (strcmp(path, "/") == 0) ? "" : "/",
+                           name);
+            }
+        }
+        st = fx_directory_next_full_entry_find(m, name, &attr, &size, &year, &month, &day, &hour, &minute, &second);
+    }
+
+    if (st == FX_NO_MORE_ENTRIES) {
+        st = FX_SUCCESS;
+    }
+
+    if (parent) {
+        fx_directory_local_path_restore(m, parent);
+    } else {
+        fx_directory_local_path_clear(m);
+    }
+    return st;
+}
+
+static int name_in_except_list(const char *name, const char *except_list)
+{
+    if (!name || !except_list) {
+        return 0;
+    }
+    size_t len = strlen(except_list) + 1U;
+    char *tmp = (char *)malloc(len);
+    if (!tmp) {
+        return 0;
+    }
+    memcpy(tmp, except_list, len);
+    int matched = 0;
+    char *ctx = NULL;
+    for (char *token = strtok_r(tmp, ";", &ctx);
+         token != NULL;
+         token = strtok_r(NULL, ";", &ctx)) {
+        if (str_ieq(name, token)) {
+            matched = 1;
+            break;
+        }
+    }
+    free(tmp);
+    return matched;
+}
+
+static UINT remove_dir_recursive(FX_MEDIA *m, const char *path, const char *except, UINT recursive)
+{
+    FX_LOCAL_PATH current;
+    UINT st = fx_directory_local_path_set(m, &current, (CHAR *)path);
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    CHAR name[ENTRY_NAME_LEN];
+    UINT attr;
+    ULONG size;
+    UINT year, month, day, hour, minute, second;
+
+    st = fx_directory_first_full_entry_find(m, name, &attr, &size, &year, &month, &day, &hour, &minute, &second);
+    while (st == FX_SUCCESS) {
+        if (!is_dot_entry(name)) {
+            if ((attr & FX_DIRECTORY) && recursive) {
+                CHAR child_path[PATH_BUFFER_LEN];
+                if (snprintf(child_path, sizeof(child_path), "%s%s%s",
+                             path,
+                             (strcmp(path, "/") == 0) ? "" : "/",
+                             name) >= (int)sizeof(child_path)) {
+                    st = FX_INVALID_NAME;
+                    break;
+                }
+                st = remove_dir_recursive(m, child_path, NULL, recursive);
+                if (st != FX_SUCCESS) {
+                    break;
+                }
+            } else if (!(attr & FX_DIRECTORY)) {
+                if (!name_in_except_list(name, except)) {
+                    CHAR full_path[PATH_BUFFER_LEN];
+                    if (snprintf(full_path, sizeof(full_path), "%s%s%s",
+                                 path,
+                                 (strcmp(path, "/") == 0) ? "" : "/",
+                                 name) >= (int)sizeof(full_path)) {
+                        st = FX_INVALID_NAME;
+                        break;
+                    }
+                    UINT del_st = fx_file_delete(m, full_path);
+                    if (del_st != FX_SUCCESS && del_st != FX_NOT_FOUND) {
+                        st = del_st;
+                        break;
+                    }
+                }
+            }
+        }
+        st = fx_directory_next_full_entry_find(m, name, &attr, &size, &year, &month, &day, &hour, &minute, &second);
+    }
+
+    if (st == FX_NO_MORE_ENTRIES) {
+        st = FX_SUCCESS;
+    }
+
+    fx_directory_local_path_restore(m, &current);
+
+    if (st == FX_SUCCESS && strcmp(path, "/") != 0) {
+        UINT del_dir = fx_directory_delete(m, (CHAR *)path);
+        if (del_dir != FX_SUCCESS && del_dir != FX_DIR_NOT_EMPTY) {
+            st = del_dir;
+        }
+    }
+    return st;
+}
+
+UINT FX_ReadFile(const char *filename, char *buf, uint32_t size, uint32_t *bytesread)
+{
+    if (!buf || !bytesread) {
+        return FX_PTR_ERROR;
+    }
+    *bytesread = 0U;
+
+    UINT st = is_filex_mount();
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    CHAR abs_path[PATH_BUFFER_LEN];
+    st = make_absolute_path(filename, abs_path, sizeof(abs_path));
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    CHAR dir[PATH_BUFFER_LEN];
+    CHAR base[ENTRY_NAME_LEN];
+    st = path_split(abs_path, dir, sizeof(dir), base, sizeof(base));
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    st = set_cwd(&sdio_disk, dir);
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    FX_FILE file;
+    st = fx_file_open(&sdio_disk, &file, base, FX_OPEN_FOR_READ);
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    ULONG request = size;
+    if (request == 0U) {
+        st = fx_file_seek(&file, FX_SEEK_END);
+        if (st != FX_SUCCESS) {
+            fx_file_close(&file);
+            return st;
+        }
+        request = file.fx_file_current_file_size;
+        st = fx_file_seek(&file, 0U);
+        if (st != FX_SUCCESS) {
+            fx_file_close(&file);
+            return st;
+        }
+    }
+
+    ULONG total = 0U;
+    while (total < request) {
+        ULONG chunk = request - total;
+        if (chunk > IO_CHUNK_SIZE) {
+            chunk = IO_CHUNK_SIZE;
+        }
+
+        ULONG got = 0U;
+        st = fx_file_read(&file, (UCHAR *)buf + total, chunk, &got);
+        if (st == FX_END_OF_FILE) {
+            st = FX_SUCCESS;
+        } else if (st != FX_SUCCESS) {
+            fx_file_close(&file);
+            return st;
+        }
+
+        total += got;
+        if (got == 0U) {
+            break;
+        }
+    }
+
+    *bytesread = total;
+    fx_file_close(&file);
+    return st;
+}
+
+UINT FX_WriteFile(const char *filename, const char *buf, uint32_t size)
+{
+    if (!buf) {
+        return FX_PTR_ERROR;
+    }
+
+    UINT st = is_filex_mount();
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    CHAR abs_path[PATH_BUFFER_LEN];
+    st = make_absolute_path(filename, abs_path, sizeof(abs_path));
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    CHAR dir[PATH_BUFFER_LEN];
+    CHAR base[ENTRY_NAME_LEN];
+    st = path_split(abs_path, dir, sizeof(dir), base, sizeof(base));
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    st = set_cwd(&sdio_disk, dir);
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    UINT create_st = fx_file_create(&sdio_disk, base);
+    if (create_st != FX_SUCCESS && create_st != FX_ALREADY_CREATED) {
+        return create_st;
+    }
+
+    FX_FILE file;
+    st = fx_file_open(&sdio_disk, &file, base, FX_OPEN_FOR_WRITE);
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    st = fx_file_truncate(&file, 0U);
+    if (st != FX_SUCCESS) {
+        fx_file_close(&file);
+        return st;
+    }
+
+    ULONG written_total = 0U;
+    while (written_total < size) {
+        ULONG chunk = size - written_total;
+        if (chunk > IO_CHUNK_SIZE) {
+            chunk = IO_CHUNK_SIZE;
+        }
+
+        st = fx_file_write(&file, (VOID *)(buf + written_total), chunk);
+        if (st != FX_SUCCESS) {
+            fx_file_close(&file);
+            return st;
+        }
+        written_total += chunk;
+    }
+
+    fx_file_close(&file);
+    (void)fx_media_flush(&sdio_disk);
+    return FX_SUCCESS;
+}
+
+UINT FX_ListDir(const char *path)
+{
+    UINT st = is_filex_mount();
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+    CHAR abs_path[PATH_BUFFER_LEN];
+    st = make_absolute_path(path ? path : "/", abs_path, sizeof(abs_path));
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+    DEBUG_DUMP(IOT_LOG_INFO, "Listing '%s'\r\n", abs_path);
+    return list_dir_recursive(&sdio_disk, abs_path, 0U, NULL);
+}
+
+UINT FX_RemoveDir(const char *path, const char *except, UINT recursive)
+{
+    UINT st = is_filex_mount();
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+    CHAR abs_path[PATH_BUFFER_LEN];
+    st = make_absolute_path(path, abs_path, sizeof(abs_path));
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+    return remove_dir_recursive(&sdio_disk, abs_path, except, recursive);
+}
+
+UINT FX_Stat(const char *path, FX_DIR_ENTRY *entry)
+{
+    if (!entry) {
+        return FX_PTR_ERROR;
+    }
+    UINT st = is_filex_mount();
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+    CHAR abs_path[PATH_BUFFER_LEN];
+    st = make_absolute_path(path, abs_path, sizeof(abs_path));
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+    UINT attr;
+    ULONG size;
+    UINT year, month, day, hour, minute, second;
+    st = fx_directory_information_get(&sdio_disk, abs_path, &attr, &size, &year, &month, &day, &hour, &minute, &second);
+    if (st == FX_SUCCESS) {
+        memset(entry, 0, sizeof(*entry));
+        entry->fx_dir_entry_attributes = (UCHAR)attr;
+        entry->fx_dir_entry_file_size = (ULONG64)size;
+        entry->fx_dir_entry_created_date = year;
+        entry->fx_dir_entry_created_time = hour;
+        entry->fx_dir_entry_time = hour;
+        entry->fx_dir_entry_date = (month << 8) | day;
+    }
+    return st;
+}
+
+UINT FX_Rename(const char *old_path, const char *new_path)
+{
+    UINT st = is_filex_mount();
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    CHAR old_abs[PATH_BUFFER_LEN];
+    CHAR new_abs[PATH_BUFFER_LEN];
+    st = make_absolute_path(old_path, old_abs, sizeof(old_abs));
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+    st = make_absolute_path(new_path, new_abs, sizeof(new_abs));
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+    DEBUG_DUMP(IOT_LOG_INFO, "Renaming '%s' -> '%s'\r\n", old_abs, new_abs);
+
+    if (strcmp(old_abs, new_abs) == 0) {
+        DEBUG_DUMP(IOT_LOG_INFO, "  Source and destination are identical, skipping rename\r\n");
+        return FX_SUCCESS;
+    }
+
+    CHAR old_dir[PATH_BUFFER_LEN];
+    CHAR new_dir[PATH_BUFFER_LEN];
+    CHAR old_base[ENTRY_NAME_LEN];
+    CHAR new_base[ENTRY_NAME_LEN];
+    st = path_split(old_abs, old_dir, sizeof(old_dir), old_base, sizeof(old_base));
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+    st = path_split(new_abs, new_dir, sizeof(new_dir), new_base, sizeof(new_base));
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    if (strcmp(old_dir, new_dir) != 0) {
+        DEBUG_DUMP(IOT_LOG_ERR, "Cross-directory rename not supported (%s -> %s)\r\n", old_dir, new_dir);
+        return FX_NOT_IMPLEMENTED;
+    }
+
+    UINT attr;
+    ULONG size;
+    UINT year, month, day, hour, minute, second;
+
+    st = fx_directory_information_get(&sdio_disk, old_abs, &attr, &size, &year, &month, &day, &hour, &minute, &second);
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    DEBUG_DUMP(IOT_LOG_INFO, "  Old entry: attr=0x%02X, size=%lu, date=%04u-%02u-%02u %02u:%02u:%02u\r\n",
+               attr, (unsigned long)size, year, month, day, hour, minute, second);
+    DEBUG_DUMP(IOT_LOG_INFO, "  Renaming %s\r\n", (attr & FX_DIRECTORY) ? "directory" : "file");
+
+    st = set_cwd(&sdio_disk, old_dir);
+    if (st != FX_SUCCESS) {
+        return st;
+    }
+
+    if (attr & FX_DIRECTORY) {
+        st = fx_directory_rename(&sdio_disk, old_base, new_base);
+    } else {
+        st = fx_file_rename(&sdio_disk, old_base, new_base);
+    }
+
+    DEBUG_DUMP(IOT_LOG_INFO, "  Rename status: 0x%02X\r\n", st);
+    (void)fx_directory_default_set(&sdio_disk, "/");
+    if (st == FX_SUCCESS) {
+        (void)fx_media_flush(&sdio_disk);
+    }
+    return st;
 }
