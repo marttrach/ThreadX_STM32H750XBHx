@@ -87,7 +87,7 @@ int w5500_port_init(const w5500_port_cfg_t *pcfg)
 
     HAL_GPIO_WritePin(g_pcfg.cs_port, g_pcfg.cs_pin, GPIO_PIN_SET);
     w5500_hw_reset();
-
+    
     // mutex (multi threadx cause deadlock)
     if (tx_mutex_create(&g_w5500_mutex, "w5500_mutex",
                         pcfg->mutex_inherit ? TX_INHERIT : TX_NO_INHERIT) != TX_SUCCESS)
@@ -99,6 +99,16 @@ int w5500_port_init(const w5500_port_cfg_t *pcfg)
     reg_wizchip_spi_cbfunc(cb_spi_rb, cb_spi_wb);
     reg_wizchip_spiburst_cbfunc(cb_spi_rburst, cb_spi_wburst);
     return 0;
+}
+
+int w5500_port_deinit(const w5500_port_cfg_t *pcfg) {
+    tx_mutex_delete(&g_w5500_mutex);
+    HAL_GPIO_WritePin(pcfg->cs_port, pcfg->cs_pin, GPIO_PIN_RESET);
+    w5500_delay_ms(250);
+    HAL_GPIO_WritePin(pcfg->cs_port, pcfg->rst_pin, GPIO_PIN_SET);
+    w5500_delay_ms(250);
+    HAL_GPIO_WritePin(pcfg->cs_port, pcfg->rst_pin, GPIO_PIN_RESET);
+    wizchip_sw_reset();
 }
 
 static void w5500_phy_dump(const char *tag)

@@ -17,6 +17,7 @@ uint16_t uart_wait_ms = 250;
 void formosa_init_setting() {
     for (int i = 0; i < formosa_device_count; i++) {
         formosa_setting[i].slave_addr = 0;
+        formosa_setting[i].connected = 0;
         formosa_setting[i].qty = 0;
         
         formosa_setting[i].summamry_len = sizeof(uint16_t) * 11;
@@ -144,10 +145,12 @@ void modbus_thread_entry(ULONG input) {
                 uart_read_blocking();
                 if (formosa_parse_response(uart_rx_buffer, uart_rx_len) == MODBUS_EX_OK) {
                     memcpy(formosa_setting[i].summamry, formosa_rtu_res.data, formosa_rtu_res.byte_count);
+                    formosa_setting[i].connected = 1;
                     // DEBUG_DUMP(IOT_LOG_DEBUG, "set summamry. length: %d\r\n", formosa_rtu_res.byte_count);
                 }
                 else {
                     memset(formosa_setting[i].summamry, 0, formosa_setting[i].summamry_len);
+                    formosa_setting[i].connected = 0;
                     // DEBUG_DUMP(IOT_LOG_DEBUG, "erase summamry. length: %d\r\n", formosa_rtu_res.byte_count);
                 }
                 tx_thread_sleep(0.1);
@@ -171,14 +174,17 @@ void modbus_thread_entry(ULONG input) {
                     uart_read_blocking();
                     if (formosa_parse_response(uart_rx_buffer, uart_rx_len) == MODBUS_EX_OK && formosa_setting[i].detail_len >= offset + formosa_rtu_res.byte_count) {
                         memcpy(formosa_setting[i].detail + offset, formosa_rtu_res.data, formosa_rtu_res.byte_count);
+                        formosa_setting[i].connected = 1;
                         // DEBUG_DUMP(IOT_LOG_DEBUG, "set detail. index: %d length: %d\r\n", offset, formosa_rtu_res.byte_count);
                     }
                     else {
                         memset(formosa_setting[i].detail, 0, formosa_setting[i].detail_len);
+                        formosa_setting[i].connected = 0;
                         // DEBUG_DUMP(IOT_LOG_DEBUG, "erase detail. index: %d length: %d\r\n", offset, formosa_rtu_res.byte_count);
                     }
                     tx_thread_sleep(0.1);
                 }
+                tx_thread_sleep(1);
             }
         }
     }
@@ -194,9 +200,7 @@ void modbus_thread_stop() {
     UINT state;
     CHAR *name;
     if (tx_thread_info_get(&modbus_thread, &name, &state, TX_NULL, TX_NULL, TX_NULL, TX_NULL, TX_NULL, TX_NULL) == TX_SUCCESS) {
-        if (state == TX_READY) {
-            tx_thread_terminate(&modbus_thread);
-            tx_thread_delete(&modbus_thread);
-        }
+        tx_thread_terminate(&modbus_thread);
+        tx_thread_delete(&modbus_thread);
     }
 }

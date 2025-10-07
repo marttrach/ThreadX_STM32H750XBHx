@@ -56,6 +56,7 @@ typedef struct {
 } w5500_net_cfg_t;
 
 int  w5500_port_init(const w5500_port_cfg_t *pcfg);
+int  w5500_port_deinit(const w5500_port_cfg_t *pcfg);
 int  w5500_bringup(const w5500_net_cfg_t *ncfg);  /* ram/PHY link */
 
 void w5500_lock(void);

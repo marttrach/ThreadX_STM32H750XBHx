@@ -63,7 +63,7 @@ uint8_t modbus_parse_response(Modbus_RTU_Frame *resp, const uint8_t *raw, uint16
         if ((raw[1] & MODBUS_ERROR_BIAS) == 0) 
             return MODBUS_EX_FORMAT_ERROR;
         else
-            return (Modbus_Exception_Code)raw[2];
+            return (Modbus_RTU_Exception_Code)raw[2];
     }
 
     // 填入結構體

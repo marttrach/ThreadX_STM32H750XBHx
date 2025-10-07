@@ -28,9 +28,6 @@ static VOID worker_thread_entry(ULONG arg);
 static uint8_t rx_hdr[CMD_HDR_SZ] __attribute__((aligned(32)));
 static hub_cmd_t *rx_hdr_ptr = (hub_cmd_t *)rx_hdr;
 
-static uint8_t  tx_hdr[RSP_HDR_SZ]  __attribute__((aligned(32)));
-static hub_rsp_t *tx_hdr_ptr = (hub_rsp_t *)tx_hdr;
-
 static volatile hub_tx_task_t *cur_tx;
 static volatile hub_rx_task_t cur_rx = {
     .buf      = NULL,
@@ -562,7 +559,7 @@ static VOID worker_thread_entry(ULONG arg)
                     hub_uart_cfg cfg;
                     memset(&cfg, 0, sizeof(hub_uart_cfg));
                     memcpy(&cfg, cmd->payload, sizeof(hub_uart_cfg) < in_len ? sizeof(hub_uart_cfg) : in_len);
-                    DEBUG_DUMP(IOT_LOG_INFO, "HUB_TARGET_UART.HUB_OP_CONFIG Type:%d Name: %d\r\n", cfg.type, cfg.name);
+                    DEBUG_DUMP(IOT_LOG_INFO, "HUB_TARGET_UART.CONFIG type: %d name: %d\r\n", cfg.type, cfg.name);
                     switch (cfg.type) {
                         case hub_config_rs485:
                             if (cfg.name == hub_config_baudrate) {
@@ -602,9 +599,8 @@ static VOID worker_thread_entry(ULONG arg)
                     }
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
-                    // tx_hdr_ptr->status = HUB_RSP_OK;
                 } else if (op == HUB_OP_WRITE && in_len > 0) {
-                    DEBUG_DUMP(IOT_LOG_ALL, "HUB_TARGET_UART: Sending %d bytes to UART8\r\n", in_len);
+                    DEBUG_DUMP(IOT_LOG_ALL, "HUB_TARGET_UART. write %d bytes to UART8\r\n", in_len);
                     iot_uart8_tx_write((uint8_t *)payload, in_len);
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
@@ -614,14 +610,13 @@ static VOID worker_thread_entry(ULONG arg)
                     hub_uart_read rd;
                     memset(&rd, 0, sizeof(hub_uart_read));
                     memcpy(&rd, payload, sizeof(hub_uart_read) < in_len ? sizeof(hub_uart_read) : in_len);
-                    DEBUG_DUMP(IOT_LOG_INFO, "HUB_TARGET_UART.HUB_OP_READ Type:%d, Num: %d\r\n", rd.type, rd.num);
+                    DEBUG_DUMP(IOT_LOG_INFO, "HUB_TARGET_UART.READ type:%d, slave num: %d\r\n", rd.type, rd.num);
                     switch (rd.type) {
                         case hub_read_length:
                             for (int i = 0; i < formosa_device_count; i++) {
                                 if (rd.num == formosa_setting[i].slave_addr) {
-                                    uint16_t data_len = 0;
-                                    data_len = formosa_setting[i].summamry_len + formosa_setting[i].detail_len;
-                                    hub_gen2send_tx_frame(&data_len, 2);
+                                    uint16_t data_len = sizeof(formosa_setting[i].connected) + formosa_setting[i].summamry_len + formosa_setting[i].detail_len;
+                                    hub_gen2send_tx_frame((uint8_t *)&data_len, 2);
                                     break;
                                 }
                             }
@@ -629,11 +624,17 @@ static VOID worker_thread_entry(ULONG arg)
                         case hub_read_content:
                             for (int i = 0; i < formosa_device_count; i++) {
                                 if (rd.num == formosa_setting[i].slave_addr) {
-                                    uint16_t data_len = 0;
-                                    data_len = formosa_setting[i].summamry_len + formosa_setting[i].detail_len;
+                                    uint16_t data_len = sizeof(formosa_setting[i].connected) + formosa_setting[i].summamry_len + formosa_setting[i].detail_len;
                                     uint8_t data_content[data_len];
-                                    memcpy(data_content, formosa_setting[i].summamry, formosa_setting[i].summamry_len);
-                                    memcpy(data_content + formosa_setting[i].summamry_len, formosa_setting[i].detail, formosa_setting[i].detail_len);
+                                    memcpy(data_content,
+                                        &formosa_setting[i].connected,
+                                        sizeof(formosa_setting[i].connected));
+                                    memcpy(data_content + sizeof(formosa_setting[i].connected), 
+                                        formosa_setting[i].summamry,
+                                        formosa_setting[i].summamry_len);
+                                    memcpy(data_content + sizeof(formosa_setting[i].connected) + formosa_setting[i].summamry_len,
+                                        formosa_setting[i].detail,
+                                        formosa_setting[i].detail_len);
                                     hub_gen2send_tx_frame(data_content, data_len);
                                     break;
                                 }
@@ -642,7 +643,8 @@ static VOID worker_thread_entry(ULONG arg)
                     }
 
                     goto _continue_loop_;
-                } else {
+                }
+                else {
                     DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_UART: Unknown operation %d\r\n", op);
                     // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
@@ -690,17 +692,48 @@ static VOID worker_thread_entry(ULONG arg)
             }
 #endif
             case HUB_TARGET_SPI:{ /*w5500_modbus_server_helper*/
-                if (op == HUB_OP_WRITE) {
-                    w5500_modbus_server_helper();
-                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
-                    goto _continue_loop_;
-                } else {
-                    
+                if (op == HUB_OP_CONFIG) {
+                    hub_spi_cfg cfg;
+                    memset(&cfg, 0, sizeof(hub_spi_cfg));
+                    memcpy(&cfg, cmd->payload, sizeof(hub_spi_cfg) < in_len ? sizeof(hub_spi_cfg) : in_len);
+                    DEBUG_DUMP(IOT_LOG_INFO, "HUB_TARGET_SPI.CONFIG type:%d\r\n", cfg.type);
+
+                    switch (cfg.type) {
+                        case hub_config_ip: {
+                            uint8_t ip[4];
+                            memcpy(ip, cfg.values, 4);
+                            w5500_modbus_set_ip(ip);
+                            break;
+                        }
+                        case hub_config_mask: {
+                            uint8_t mask[4];
+                            memcpy(mask, cfg.values, 4);
+                            w5500_modbus_set_mask(mask);
+                            break;
+                        }
+                        case hub_config_port: {
+                            uint16_t port = 0;
+                            memcpy(&port, cfg.values, 2);
+                            w5500_modbus_set_port(port);
+                            break;
+                        }
+                        case hub_config_eth_work:
+                            if (cfg.values[0] > 0)
+                                w5500_modbus_server_helper();
+                            else
+                                w5500_modbus_thread_stop();
+                            break;
+                    }
+                }
+                else if (op == HUB_OP_WRITE) {
+                    // do nothing
+                }
+                else {
                     DEBUG_DUMP(IOT_LOG_ERR, "HUB_TARGET_SPI: Unknown operation %d\r\n", op);
                     // hub_send_tx_frame(s_unknown_cmd, sizeof(s_unknown_cmd));
-                    if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
-                    goto _continue_loop_;
                 }
+                if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
+                goto _continue_loop_;
                 break;
             }
 #if IOT_HUB_I2C
@@ -828,7 +861,6 @@ static VOID worker_thread_entry(ULONG arg)
                     uart7_thread_start();
                     if (cmd) { hub_sdram_free_rx((void*)cmd, rx_total); cmd = NULL; }
                     goto _continue_loop_;
-                    // tx_hdr_ptr->status = HUB_RSP_OK;
                 } else if (op == HUB_OP_WRITE && in_len > 0) {
                     DEBUG_DUMP(IOT_LOG_ALL, "HUB_TARGET_UART: Sending %d bytes to UART7\r\n", in_len);
                     iot_uart7_tx_write((uint8_t *)payload, in_len);

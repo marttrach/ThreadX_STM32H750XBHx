@@ -22,7 +22,7 @@ typedef enum {
     MODBUS_EX_GATEWAY_FAILED   = 0x0B,
     MODBUS_EX_CRC_ERROR        = 0xFE,
     MODBUS_EX_FORMAT_ERROR     = 0xFF
-} Modbus_Exception_Code;
+} Modbus_RTU_Exception_Code;
 
 typedef struct {
     uint8_t  slave_addr;       // 從機地址

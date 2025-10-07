@@ -139,6 +139,18 @@ typedef enum {
     hub_read_content = 2
 }  hub_uart_read_type ;
 
+typedef struct {
+    uint8_t         type;
+    uint8_t         values[6];
+} hub_spi_cfg ;
+
+typedef enum {
+    hub_config_ip = 1,
+    hub_config_mask = 2,
+    hub_config_port = 3,
+    hub_config_eth_work = 4
+}  hub_spi_cfg_type ;
+
 /* CMD */
 typedef struct __attribute__((packed, aligned(4))) {
     uint8_t  target;

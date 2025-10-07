@@ -6,6 +6,7 @@
 
 typedef struct {
     uint8_t  slave_addr;
+    uint8_t  connected;
     uint16_t qty;
     uint16_t summamry_len;
     uint16_t *summamry;
